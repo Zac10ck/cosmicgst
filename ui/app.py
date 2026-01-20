@@ -38,7 +38,7 @@ class App(ctk.CTk):
         """Create left sidebar with navigation buttons"""
         self.sidebar = ctk.CTkFrame(self, width=200, corner_radius=0)
         self.sidebar.grid(row=0, column=0, sticky="nsew")
-        self.sidebar.grid_rowconfigure(9, weight=1)
+        self.sidebar.grid_rowconfigure(10, weight=1)
 
         # App title
         self.logo_label = ctk.CTkLabel(
@@ -53,10 +53,11 @@ class App(ctk.CTk):
             ("Dashboard", "dashboard", 1),
             ("New Bill", "billing", 2),
             ("Invoices", "invoices", 3),
-            ("Products", "products", 4),
-            ("Customers", "customers", 5),
-            ("Reports", "reports", 6),
-            ("Settings", "settings", 7),
+            ("Credit Notes", "credit_notes", 4),
+            ("Products", "products", 5),
+            ("Customers", "customers", 6),
+            ("Reports", "reports", 7),
+            ("Settings", "settings", 8),
         ]
 
         self.nav_buttons = {}
@@ -87,7 +88,7 @@ class App(ctk.CTk):
             hover_color="darkgreen",
             command=self._do_backup
         )
-        self.backup_btn.grid(row=10, column=0, padx=10, pady=(5, 20), sticky="ew")
+        self.backup_btn.grid(row=11, column=0, padx=10, pady=(5, 20), sticky="ew")
 
     def _create_content_area(self):
         """Create main content area"""
@@ -100,6 +101,7 @@ class App(ctk.CTk):
         from .dashboard import DashboardFrame
         from .billing import BillingFrame
         from .invoices import InvoicesFrame
+        from .credit_notes import CreditNotesFrame
         from .products import ProductsFrame
         from .customers import CustomersFrame
         from .reports import ReportsFrame
@@ -110,6 +112,7 @@ class App(ctk.CTk):
             "dashboard": DashboardFrame(self.content_frame, self),
             "billing": BillingFrame(self.content_frame, self),
             "invoices": InvoicesFrame(self.content_frame, self),
+            "credit_notes": CreditNotesFrame(self.content_frame, self),
             "products": ProductsFrame(self.content_frame, self),
             "customers": CustomersFrame(self.content_frame, self),
             "reports": ReportsFrame(self.content_frame, self),

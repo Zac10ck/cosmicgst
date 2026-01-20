@@ -216,6 +216,73 @@ def init_db():
     except sqlite3.OperationalError:
         pass
 
+    # Add payment_status to invoices
+    try:
+        cursor.execute("ALTER TABLE invoices ADD COLUMN payment_status TEXT DEFAULT 'PAID'")
+    except sqlite3.OperationalError:
+        pass
+
+    # Invoice Payments table (for split payments)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS invoice_payments (
+            id INTEGER PRIMARY KEY,
+            invoice_id INTEGER NOT NULL,
+            payment_mode TEXT NOT NULL,
+            amount REAL NOT NULL,
+            payment_date DATE NOT NULL,
+            reference_number TEXT,
+            notes TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (invoice_id) REFERENCES invoices(id)
+        )
+    """)
+
+    # Credit Notes table
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS credit_notes (
+            id INTEGER PRIMARY KEY,
+            credit_note_number TEXT UNIQUE NOT NULL,
+            credit_note_date DATE NOT NULL,
+            original_invoice_id INTEGER,
+            original_invoice_number TEXT,
+            customer_id INTEGER,
+            customer_name TEXT,
+            reason TEXT NOT NULL,
+            reason_details TEXT,
+            subtotal REAL,
+            cgst_total REAL,
+            sgst_total REAL,
+            igst_total REAL,
+            grand_total REAL,
+            status TEXT DEFAULT 'ACTIVE',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (original_invoice_id) REFERENCES invoices(id),
+            FOREIGN KEY (customer_id) REFERENCES customers(id)
+        )
+    """)
+
+    # Credit Note Items table
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS credit_note_items (
+            id INTEGER PRIMARY KEY,
+            credit_note_id INTEGER NOT NULL,
+            product_id INTEGER,
+            product_name TEXT,
+            hsn_code TEXT,
+            qty REAL,
+            unit TEXT,
+            rate REAL,
+            gst_rate REAL,
+            taxable_value REAL,
+            cgst REAL,
+            sgst REAL,
+            igst REAL,
+            total REAL,
+            FOREIGN KEY (credit_note_id) REFERENCES credit_notes(id),
+            FOREIGN KEY (product_id) REFERENCES products(id)
+        )
+    """)
+
     # Create indexes for faster lookups
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_products_barcode ON products(barcode)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_products_name ON products(name)")
@@ -223,6 +290,11 @@ def init_db():
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_invoices_date ON invoices(invoice_date)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_invoices_number ON invoices(invoice_number)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_invoices_customer ON invoices(customer_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_invoice_payments_invoice ON invoice_payments(invoice_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_invoice_payments_date ON invoice_payments(payment_date)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_credit_notes_date ON credit_notes(credit_note_date)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_credit_notes_invoice ON credit_notes(original_invoice_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_credit_notes_customer ON credit_notes(customer_id)")
 
     # Insert default categories if empty
     cursor.execute("SELECT COUNT(*) FROM categories")

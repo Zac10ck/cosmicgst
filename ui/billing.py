@@ -197,27 +197,76 @@ class BillingFrame(ctk.CTkFrame):
         ).grid(row=5, column=0, sticky="w")
         self.grand_total_label.grid(row=5, column=1, sticky="e")
 
-        # Payment mode
+        # Payment mode section
         payment_frame = ctk.CTkFrame(right_frame, fg_color="transparent")
         payment_frame.grid(row=2, column=0, sticky="ew", padx=15, pady=10)
 
         ctk.CTkLabel(
             payment_frame,
-            text="Payment Mode:",
-            font=ctk.CTkFont(size=12)
+            text="Payment:",
+            font=ctk.CTkFont(size=12, weight="bold")
         ).pack(anchor="w")
 
-        self.payment_var = ctk.StringVar(value="CASH")
-        payment_buttons = ctk.CTkFrame(payment_frame, fg_color="transparent")
-        payment_buttons.pack(fill="x", pady=5)
+        # Quick payment buttons
+        quick_buttons = ctk.CTkFrame(payment_frame, fg_color="transparent")
+        quick_buttons.pack(fill="x", pady=5)
 
-        for mode in PAYMENT_MODES[:4]:  # Show first 4 modes
-            ctk.CTkRadioButton(
-                payment_buttons,
-                text=mode,
-                variable=self.payment_var,
-                value=mode
-            ).pack(side="left", padx=(0, 15))
+        self.payment_mode = "single"  # "single" or "split"
+        self.payment_var = ctk.StringVar(value="CASH")
+        self.split_payments = []  # List of payment dicts
+
+        ctk.CTkButton(
+            quick_buttons,
+            text="Cash",
+            width=60,
+            height=30,
+            fg_color="#27ae60",
+            hover_color="#1e8449",
+            command=lambda: self._set_payment_mode("CASH")
+        ).pack(side="left", padx=(0, 5))
+
+        ctk.CTkButton(
+            quick_buttons,
+            text="UPI",
+            width=60,
+            height=30,
+            fg_color="#3498db",
+            hover_color="#2980b9",
+            command=lambda: self._set_payment_mode("UPI")
+        ).pack(side="left", padx=(0, 5))
+
+        ctk.CTkButton(
+            quick_buttons,
+            text="Card",
+            width=60,
+            height=30,
+            fg_color="#9b59b6",
+            hover_color="#8e44ad",
+            command=lambda: self._set_payment_mode("CARD")
+        ).pack(side="left", padx=(0, 5))
+
+        ctk.CTkButton(
+            quick_buttons,
+            text="Split",
+            width=60,
+            height=30,
+            fg_color="#e67e22",
+            hover_color="#d35400",
+            command=self._show_split_payment
+        ).pack(side="left", padx=(0, 5))
+
+        # Payment mode indicator
+        self.payment_indicator = ctk.CTkLabel(
+            payment_frame,
+            text="Mode: CASH",
+            font=ctk.CTkFont(size=11),
+            text_color="gray"
+        )
+        self.payment_indicator.pack(anchor="w", pady=(5, 0))
+
+        # Split payment container (hidden by default)
+        self.split_frame = ctk.CTkFrame(payment_frame, fg_color=("gray90", "gray20"))
+        self.split_payments_container = None
 
         # Action buttons
         actions_frame = ctk.CTkFrame(right_frame, fg_color="transparent")
@@ -518,12 +567,35 @@ class BillingFrame(ctk.CTkFrame):
         # Create invoice
         cart_data = [{'product_id': item['product_id'], 'qty': item['qty']} for item in self.cart]
 
+        # Get payment info
+        payments_list = self._get_payments_list()
+        primary_payment_mode = self.payment_var.get()
+
+        # For split payments, use the first payment mode as primary
+        if payments_list and len(payments_list) > 0:
+            primary_payment_mode = payments_list[0]['mode']
+
         invoice = self.invoice_service.create_invoice(
             cart_items=cart_data,
             customer=self.selected_customer,
             discount=discount,
-            payment_mode=self.payment_var.get()
+            payment_mode=primary_payment_mode
         )
+
+        # Record payments
+        if payments_list:
+            from services.payment_service import PaymentService
+            payment_service = PaymentService()
+            payment_service.record_split_payment(invoice.id, payments_list)
+        else:
+            # Single payment - record full amount
+            from services.payment_service import PaymentService
+            payment_service = PaymentService()
+            payment_service.record_payment(
+                invoice_id=invoice.id,
+                payment_mode=primary_payment_mode,
+                amount=invoice.grand_total
+            )
 
         # Generate and print PDF
         try:
@@ -538,8 +610,9 @@ class BillingFrame(ctk.CTkFrame):
                 f"Invoice saved but printing failed: {e}\n\nInvoice No: {invoice.invoice_number}"
             )
 
-        # Clear cart
+        # Clear cart and reset payment UI
         self._clear_cart()
+        self._set_payment_mode("CASH")
 
     def _hold_bill(self):
         """Hold current bill for later recall (F5)"""
@@ -654,6 +727,171 @@ class BillingFrame(ctk.CTkFrame):
         """Delete a held bill"""
         bill.delete()
         frame.destroy()
+
+    def _set_payment_mode(self, mode: str):
+        """Set single payment mode"""
+        self.payment_mode = "single"
+        self.payment_var.set(mode)
+        self.split_payments = []
+        self.payment_indicator.configure(text=f"Mode: {mode}")
+        # Hide split frame if shown
+        self.split_frame.pack_forget()
+
+    def _show_split_payment(self):
+        """Show split payment UI"""
+        self.payment_mode = "split"
+        self.payment_indicator.configure(text="Mode: SPLIT PAYMENT")
+
+        # Show split payment frame
+        self.split_frame.pack(fill="x", pady=(10, 0))
+
+        # Clear previous content
+        for widget in self.split_frame.winfo_children():
+            widget.destroy()
+
+        self.split_payments = []
+        self.split_payment_rows = []
+
+        # Header
+        header = ctk.CTkFrame(self.split_frame, fg_color="transparent")
+        header.pack(fill="x", padx=10, pady=(10, 5))
+
+        ctk.CTkLabel(header, text="Split Payment", font=ctk.CTkFont(size=12, weight="bold")).pack(side="left")
+        ctk.CTkButton(
+            header,
+            text="+ Add",
+            width=50,
+            height=25,
+            fg_color="#27ae60",
+            command=self._add_split_payment_row
+        ).pack(side="right")
+
+        # Container for payment rows
+        self.split_payments_container = ctk.CTkFrame(self.split_frame, fg_color="transparent")
+        self.split_payments_container.pack(fill="x", padx=10, pady=5)
+
+        # Add two default rows
+        self._add_split_payment_row()
+        self._add_split_payment_row()
+
+        # Total row
+        self.split_total_frame = ctk.CTkFrame(self.split_frame, fg_color="transparent")
+        self.split_total_frame.pack(fill="x", padx=10, pady=(5, 10))
+
+        self.split_total_label = ctk.CTkLabel(
+            self.split_total_frame,
+            text="Split Total: 0.00 | Balance: 0.00",
+            font=ctk.CTkFont(size=11),
+            text_color="gray"
+        )
+        self.split_total_label.pack(side="left")
+
+    def _add_split_payment_row(self):
+        """Add a split payment row"""
+        row_frame = ctk.CTkFrame(self.split_payments_container, fg_color="transparent")
+        row_frame.pack(fill="x", pady=2)
+
+        # Mode dropdown
+        mode_var = ctk.StringVar(value="CASH")
+        mode_combo = ctk.CTkComboBox(
+            row_frame,
+            values=PAYMENT_MODES,
+            variable=mode_var,
+            width=100,
+            height=28
+        )
+        mode_combo.pack(side="left", padx=(0, 5))
+
+        # Amount entry
+        amount_var = ctk.StringVar(value="0")
+        amount_entry = ctk.CTkEntry(
+            row_frame,
+            textvariable=amount_var,
+            width=80,
+            height=28,
+            placeholder_text="Amount"
+        )
+        amount_entry.pack(side="left", padx=(0, 5))
+        amount_entry.bind('<KeyRelease>', lambda e: self._update_split_total())
+
+        # Reference entry
+        ref_var = ctk.StringVar()
+        ref_entry = ctk.CTkEntry(
+            row_frame,
+            textvariable=ref_var,
+            width=80,
+            height=28,
+            placeholder_text="Ref #"
+        )
+        ref_entry.pack(side="left", padx=(0, 5))
+
+        # Remove button
+        ctk.CTkButton(
+            row_frame,
+            text="X",
+            width=25,
+            height=28,
+            fg_color="red",
+            hover_color="darkred",
+            command=lambda: self._remove_split_payment_row(row_frame, payment_data)
+        ).pack(side="left")
+
+        payment_data = {
+            'frame': row_frame,
+            'mode_var': mode_var,
+            'amount_var': amount_var,
+            'ref_var': ref_var
+        }
+        self.split_payment_rows.append(payment_data)
+
+    def _remove_split_payment_row(self, frame, payment_data):
+        """Remove a split payment row"""
+        if len(self.split_payment_rows) > 1:
+            frame.destroy()
+            self.split_payment_rows.remove(payment_data)
+            self._update_split_total()
+
+    def _update_split_total(self):
+        """Update split payment total"""
+        total = 0
+        for row in self.split_payment_rows:
+            try:
+                total += float(row['amount_var'].get() or 0)
+            except ValueError:
+                pass
+
+        # Get grand total
+        try:
+            grand_total = float(self.grand_total_label.cget("text").replace(",", "").replace("₹", ""))
+        except:
+            grand_total = 0
+
+        balance = grand_total - total
+        color = "green" if balance <= 0 else "red"
+
+        self.split_total_label.configure(
+            text=f"Split Total: {format_currency(total)} | Balance: {format_currency(balance)}",
+            text_color=color if balance != 0 else "gray"
+        )
+
+    def _get_payments_list(self):
+        """Get list of payments for invoice creation"""
+        if self.payment_mode == "single":
+            return None  # Use legacy single payment mode
+
+        payments = []
+        for row in self.split_payment_rows:
+            try:
+                amount = float(row['amount_var'].get() or 0)
+                if amount > 0:
+                    payments.append({
+                        'mode': row['mode_var'].get(),
+                        'amount': amount,
+                        'reference': row['ref_var'].get()
+                    })
+            except ValueError:
+                pass
+        return payments if payments else None
 
     def refresh(self):
         """Refresh customer list"""

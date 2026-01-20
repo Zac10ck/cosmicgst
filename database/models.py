@@ -274,6 +274,7 @@ class Invoice:
     # Payment tracking fields (CRITICAL - must match database schema)
     amount_paid: float = 0.0
     balance_due: float = 0.0
+    payment_status: str = "PAID"  # UNPAID, PARTIAL, PAID
 
     @classmethod
     def get_by_id(cls, invoice_id: int) -> Optional['Invoice']:
@@ -366,19 +367,30 @@ class Invoice:
             conn.execute("""
                 UPDATE invoices SET invoice_number=?, invoice_date=?, customer_id=?,
                 customer_name=?, subtotal=?, cgst_total=?, sgst_total=?, igst_total=?,
-                discount=?, grand_total=?, payment_mode=?, is_cancelled=? WHERE id=?
+                discount=?, grand_total=?, payment_mode=?, is_cancelled=?,
+                amount_paid=?, balance_due=?, payment_status=?,
+                vehicle_number=?, transport_mode=?, transport_distance=?,
+                transporter_id=?, eway_bill_number=?
+                WHERE id=?
             """, (self.invoice_number, self.invoice_date.isoformat(), self.customer_id,
                   self.customer_name, self.subtotal, self.cgst_total, self.sgst_total,
                   self.igst_total, self.discount, self.grand_total, self.payment_mode,
-                  self.is_cancelled, self.id))
+                  self.is_cancelled, self.amount_paid, self.balance_due, self.payment_status,
+                  self.vehicle_number, self.transport_mode, self.transport_distance,
+                  self.transporter_id, self.eway_bill_number, self.id))
         else:
             cursor = conn.execute("""
                 INSERT INTO invoices (invoice_number, invoice_date, customer_id, customer_name,
-                subtotal, cgst_total, sgst_total, igst_total, discount, grand_total, payment_mode, is_cancelled)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                subtotal, cgst_total, sgst_total, igst_total, discount, grand_total, payment_mode,
+                is_cancelled, amount_paid, balance_due, payment_status,
+                vehicle_number, transport_mode, transport_distance, transporter_id, eway_bill_number)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (self.invoice_number, self.invoice_date.isoformat(), self.customer_id,
                   self.customer_name, self.subtotal, self.cgst_total, self.sgst_total,
-                  self.igst_total, self.discount, self.grand_total, self.payment_mode, self.is_cancelled))
+                  self.igst_total, self.discount, self.grand_total, self.payment_mode,
+                  self.is_cancelled, self.amount_paid, self.balance_due, self.payment_status,
+                  self.vehicle_number, self.transport_mode, self.transport_distance,
+                  self.transporter_id, self.eway_bill_number))
             self.id = cursor.lastrowid
 
         # Delete existing items and re-insert
@@ -558,3 +570,255 @@ class AppSettings:
         rows = conn.execute("SELECT key, value FROM app_settings").fetchall()
         conn.close()
         return {row['key']: row['value'] for row in rows}
+
+
+@dataclass
+class InvoicePayment:
+    """Payment record for split payments"""
+    id: Optional[int] = None
+    invoice_id: Optional[int] = None
+    payment_mode: str = "CASH"
+    amount: float = 0.0
+    payment_date: date = field(default_factory=date.today)
+    reference_number: str = ""
+    notes: str = ""
+    created_at: Optional[datetime] = None
+
+    @classmethod
+    def get_by_invoice(cls, invoice_id: int) -> List['InvoicePayment']:
+        """Get all payments for an invoice"""
+        conn = get_connection()
+        rows = conn.execute("""
+            SELECT * FROM invoice_payments
+            WHERE invoice_id = ?
+            ORDER BY payment_date, id
+        """, (invoice_id,)).fetchall()
+        conn.close()
+        return [cls(**dict(row)) for row in rows]
+
+    @classmethod
+    def get_by_date_range(cls, start_date: date, end_date: date) -> List['InvoicePayment']:
+        """Get payments in date range"""
+        conn = get_connection()
+        rows = conn.execute("""
+            SELECT * FROM invoice_payments
+            WHERE payment_date BETWEEN ? AND ?
+            ORDER BY payment_date DESC, id DESC
+        """, (start_date.isoformat(), end_date.isoformat())).fetchall()
+        conn.close()
+        return [cls(**dict(row)) for row in rows]
+
+    def save(self):
+        """Save payment record"""
+        conn = get_connection()
+        if self.id:
+            conn.execute("""
+                UPDATE invoice_payments SET invoice_id=?, payment_mode=?, amount=?,
+                payment_date=?, reference_number=?, notes=? WHERE id=?
+            """, (self.invoice_id, self.payment_mode, self.amount,
+                  self.payment_date.isoformat(), self.reference_number, self.notes, self.id))
+        else:
+            cursor = conn.execute("""
+                INSERT INTO invoice_payments (invoice_id, payment_mode, amount, payment_date, reference_number, notes)
+                VALUES (?, ?, ?, ?, ?, ?)
+            """, (self.invoice_id, self.payment_mode, self.amount,
+                  self.payment_date.isoformat(), self.reference_number, self.notes))
+            self.id = cursor.lastrowid
+        conn.commit()
+        conn.close()
+
+    def delete(self):
+        """Delete payment record"""
+        conn = get_connection()
+        conn.execute("DELETE FROM invoice_payments WHERE id = ?", (self.id,))
+        conn.commit()
+        conn.close()
+
+
+@dataclass
+class CreditNoteItem:
+    """Credit note line item"""
+    id: Optional[int] = None
+    credit_note_id: Optional[int] = None
+    product_id: Optional[int] = None
+    product_name: str = ""
+    hsn_code: str = ""
+    qty: float = 0.0
+    unit: str = "NOS"
+    rate: float = 0.0
+    gst_rate: float = 0.0
+    taxable_value: float = 0.0
+    cgst: float = 0.0
+    sgst: float = 0.0
+    igst: float = 0.0
+    total: float = 0.0
+
+
+@dataclass
+class CreditNote:
+    """Credit note for returns and refunds"""
+    id: Optional[int] = None
+    credit_note_number: str = ""
+    credit_note_date: date = field(default_factory=date.today)
+    original_invoice_id: Optional[int] = None
+    original_invoice_number: str = ""
+    customer_id: Optional[int] = None
+    customer_name: str = ""
+    reason: str = "RETURN"  # RETURN, DAMAGE, PRICE_ADJUSTMENT, OTHER
+    reason_details: str = ""
+    subtotal: float = 0.0
+    cgst_total: float = 0.0
+    sgst_total: float = 0.0
+    igst_total: float = 0.0
+    grand_total: float = 0.0
+    status: str = "ACTIVE"  # ACTIVE, APPLIED, CANCELLED
+    created_at: Optional[datetime] = None
+    items: List[CreditNoteItem] = field(default_factory=list)
+
+    @classmethod
+    def get_by_id(cls, credit_note_id: int) -> Optional['CreditNote']:
+        """Get credit note by ID with items"""
+        conn = get_connection()
+        row = conn.execute("SELECT * FROM credit_notes WHERE id = ?", (credit_note_id,)).fetchone()
+        if not row:
+            conn.close()
+            return None
+
+        credit_note = cls(**{k: v for k, v in dict(row).items() if k != 'items'})
+
+        # Get items
+        items = conn.execute("SELECT * FROM credit_note_items WHERE credit_note_id = ?", (credit_note_id,)).fetchall()
+        credit_note.items = [CreditNoteItem(**dict(item)) for item in items]
+
+        conn.close()
+        return credit_note
+
+    @classmethod
+    def get_by_number(cls, credit_note_number: str) -> Optional['CreditNote']:
+        """Get credit note by number"""
+        conn = get_connection()
+        row = conn.execute("SELECT * FROM credit_notes WHERE credit_note_number = ?", (credit_note_number,)).fetchone()
+        conn.close()
+        if row:
+            return cls.get_by_id(row['id'])
+        return None
+
+    @classmethod
+    def get_by_date_range(cls, start_date: date, end_date: date, include_cancelled: bool = False) -> List['CreditNote']:
+        """Get credit notes in date range"""
+        conn = get_connection()
+        if include_cancelled:
+            rows = conn.execute("""
+                SELECT * FROM credit_notes
+                WHERE credit_note_date BETWEEN ? AND ?
+                ORDER BY credit_note_date DESC, id DESC
+            """, (start_date.isoformat(), end_date.isoformat())).fetchall()
+        else:
+            rows = conn.execute("""
+                SELECT * FROM credit_notes
+                WHERE credit_note_date BETWEEN ? AND ? AND status != 'CANCELLED'
+                ORDER BY credit_note_date DESC, id DESC
+            """, (start_date.isoformat(), end_date.isoformat())).fetchall()
+        conn.close()
+        return [cls.get_by_id(row['id']) for row in rows]
+
+    @classmethod
+    def get_by_invoice(cls, invoice_id: int) -> List['CreditNote']:
+        """Get credit notes for an invoice"""
+        conn = get_connection()
+        rows = conn.execute("""
+            SELECT * FROM credit_notes
+            WHERE original_invoice_id = ?
+            ORDER BY credit_note_date DESC
+        """, (invoice_id,)).fetchall()
+        conn.close()
+        return [cls.get_by_id(row['id']) for row in rows]
+
+    @classmethod
+    def get_next_credit_note_number(cls) -> str:
+        """Generate next credit note number"""
+        from config import FINANCIAL_YEAR_START_MONTH
+
+        today = date.today()
+        if today.month >= FINANCIAL_YEAR_START_MONTH:
+            fy_start = today.year
+            fy_end = today.year + 1
+        else:
+            fy_start = today.year - 1
+            fy_end = today.year
+
+        fy_str = f"{fy_start}-{str(fy_end)[-2:]}"
+        prefix = f"CN/{fy_str}/"
+
+        conn = get_connection()
+        row = conn.execute("""
+            SELECT credit_note_number FROM credit_notes
+            WHERE credit_note_number LIKE ?
+            ORDER BY id DESC LIMIT 1
+        """, (f"{prefix}%",)).fetchone()
+        conn.close()
+
+        if row:
+            try:
+                last_num = int(row['credit_note_number'].split('/')[-1])
+                next_num = last_num + 1
+            except ValueError:
+                next_num = 1
+        else:
+            next_num = 1
+
+        return f"{prefix}{next_num:04d}"
+
+    def save(self):
+        """Save credit note and items"""
+        conn = get_connection()
+
+        if self.id:
+            conn.execute("""
+                UPDATE credit_notes SET credit_note_number=?, credit_note_date=?,
+                original_invoice_id=?, original_invoice_number=?, customer_id=?,
+                customer_name=?, reason=?, reason_details=?, subtotal=?, cgst_total=?,
+                sgst_total=?, igst_total=?, grand_total=?, status=?
+                WHERE id=?
+            """, (self.credit_note_number, self.credit_note_date.isoformat(),
+                  self.original_invoice_id, self.original_invoice_number, self.customer_id,
+                  self.customer_name, self.reason, self.reason_details, self.subtotal,
+                  self.cgst_total, self.sgst_total, self.igst_total, self.grand_total,
+                  self.status, self.id))
+        else:
+            cursor = conn.execute("""
+                INSERT INTO credit_notes (credit_note_number, credit_note_date,
+                original_invoice_id, original_invoice_number, customer_id, customer_name,
+                reason, reason_details, subtotal, cgst_total, sgst_total, igst_total,
+                grand_total, status)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (self.credit_note_number, self.credit_note_date.isoformat(),
+                  self.original_invoice_id, self.original_invoice_number, self.customer_id,
+                  self.customer_name, self.reason, self.reason_details, self.subtotal,
+                  self.cgst_total, self.sgst_total, self.igst_total, self.grand_total,
+                  self.status))
+            self.id = cursor.lastrowid
+
+        # Delete existing items and re-insert
+        conn.execute("DELETE FROM credit_note_items WHERE credit_note_id = ?", (self.id,))
+
+        for item in self.items:
+            item.credit_note_id = self.id
+            conn.execute("""
+                INSERT INTO credit_note_items (credit_note_id, product_id, product_name, hsn_code,
+                qty, unit, rate, gst_rate, taxable_value, cgst, sgst, igst, total)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (item.credit_note_id, item.product_id, item.product_name, item.hsn_code,
+                  item.qty, item.unit, item.rate, item.gst_rate, item.taxable_value,
+                  item.cgst, item.sgst, item.igst, item.total))
+
+        conn.commit()
+        conn.close()
+
+    def cancel(self):
+        """Cancel credit note"""
+        self.status = "CANCELLED"
+        conn = get_connection()
+        conn.execute("UPDATE credit_notes SET status = 'CANCELLED' WHERE id = ?", (self.id,))
+        conn.commit()
+        conn.close()

@@ -13,8 +13,31 @@ from reportlab.lib.enums import TA_CENTER, TA_RIGHT, TA_LEFT
 from reportlab.graphics.shapes import Drawing, Rect, Line
 from reportlab.graphics import renderPDF
 
-from database.models import Invoice, Company
+from database.models import Invoice, Company, CreditNote
 from utils.formatters import format_currency, number_to_words_indian, format_date
+
+
+# State code to name mapping
+STATE_CODES = {
+    "01": "Jammu & Kashmir", "02": "Himachal Pradesh", "03": "Punjab",
+    "04": "Chandigarh", "05": "Uttarakhand", "06": "Haryana",
+    "07": "Delhi", "08": "Rajasthan", "09": "Uttar Pradesh",
+    "10": "Bihar", "11": "Sikkim", "12": "Arunachal Pradesh",
+    "13": "Nagaland", "14": "Manipur", "15": "Mizoram",
+    "16": "Tripura", "17": "Meghalaya", "18": "Assam",
+    "19": "West Bengal", "20": "Jharkhand", "21": "Odisha",
+    "22": "Chhattisgarh", "23": "Madhya Pradesh", "24": "Gujarat",
+    "26": "Dadra & Nagar Haveli and Daman & Diu", "27": "Maharashtra",
+    "28": "Andhra Pradesh (Old)", "29": "Karnataka", "30": "Goa",
+    "31": "Lakshadweep", "32": "Kerala", "33": "Tamil Nadu",
+    "34": "Puducherry", "35": "Andaman & Nicobar", "36": "Telangana",
+    "37": "Andhra Pradesh", "38": "Ladakh"
+}
+
+
+def get_state_name(state_code: str) -> str:
+    """Get state name from code"""
+    return STATE_CODES.get(state_code, f"State {state_code}")
 
 
 # Professional color scheme
@@ -171,6 +194,10 @@ class PDFGenerator:
         elements.append(Spacer(1, 5*mm))
         elements.extend(self._build_items_table(invoice, content_width))
 
+        # ==================== HSN SUMMARY TABLE ====================
+        elements.append(Spacer(1, 5*mm))
+        elements.extend(self._build_hsn_summary(invoice, content_width))
+
         # ==================== TOTALS SECTION ====================
         elements.append(Spacer(1, 3*mm))
         elements.extend(self._build_totals_section(invoice, content_width))
@@ -297,17 +324,30 @@ class PDFGenerator:
         if isinstance(inv_date, str):
             inv_date = date.fromisoformat(inv_date)
 
+        # Determine Place of Supply (buyer state)
+        buyer_state_code = "32"  # Default Kerala
+        if invoice.customer_id:
+            from database.models import Customer
+            customer = Customer.get_by_id(invoice.customer_id)
+            if customer:
+                buyer_state_code = customer.state_code or "32"
+
+        place_of_supply = f"{get_state_name(buyer_state_code)} ({buyer_state_code})"
+        is_inter_state = company.state_code != buyer_state_code
+
         # Left column - Invoice details
         invoice_details = [
             [Paragraph("<b>Invoice No:</b>", self.styles['NormalText']),
              Paragraph(invoice.invoice_number, self.styles['NormalText'])],
             [Paragraph("<b>Date:</b>", self.styles['NormalText']),
              Paragraph(format_date(inv_date), self.styles['NormalText'])],
-            [Paragraph("<b>Payment:</b>", self.styles['NormalText']),
-             Paragraph(invoice.payment_mode, self.styles['NormalText'])],
+            [Paragraph("<b>Place of Supply:</b>", self.styles['NormalText']),
+             Paragraph(place_of_supply, self.styles['NormalText'])],
+            [Paragraph("<b>Reverse Charge:</b>", self.styles['NormalText']),
+             Paragraph("No", self.styles['NormalText'])],
         ]
 
-        left_table = Table(invoice_details, colWidths=[25*mm, 50*mm])
+        left_table = Table(invoice_details, colWidths=[32*mm, 50*mm])
         left_table.setStyle(TableStyle([
             ('VALIGN', (0, 0), (-1, -1), 'TOP'),
             ('LEFTPADDING', (0, 0), (-1, -1), 0),
@@ -323,13 +363,13 @@ class PDFGenerator:
 
         # Get customer details if available
         if invoice.customer_id:
-            from database.models import Customer
             customer = Customer.get_by_id(invoice.customer_id)
             if customer:
                 if customer.address:
                     customer_content.append(Paragraph(customer.address, self.styles['NormalText']))
                 if customer.gstin:
                     customer_content.append(Paragraph(f"<b>GSTIN:</b> {customer.gstin}", self.styles['NormalText']))
+                customer_content.append(Paragraph(f"<b>State:</b> {get_state_name(customer.state_code)} ({customer.state_code})", self.styles['NormalText']))
                 if customer.phone:
                     customer_content.append(Paragraph(f"<b>Phone:</b> {customer.phone}", self.styles['NormalText']))
 
@@ -439,6 +479,98 @@ class PDFGenerator:
 
         items_table.setStyle(TableStyle(style_commands))
         elements.append(items_table)
+
+        return elements
+
+    def _build_hsn_summary(self, invoice: Invoice, content_width: float) -> list:
+        """Build HSN-wise tax summary table (GST requirement)"""
+        elements = []
+
+        # Group items by HSN code
+        hsn_data = {}
+        for item in invoice.items:
+            hsn = item.hsn_code or "N/A"
+            if hsn not in hsn_data:
+                hsn_data[hsn] = {
+                    'taxable': 0,
+                    'cgst': 0,
+                    'sgst': 0,
+                    'igst': 0,
+                    'gst_rate': item.gst_rate,
+                    'total': 0
+                }
+            hsn_data[hsn]['taxable'] += item.taxable_value
+            hsn_data[hsn]['cgst'] += item.cgst
+            hsn_data[hsn]['sgst'] += item.sgst
+            hsn_data[hsn]['igst'] += item.igst
+            hsn_data[hsn]['total'] += item.total
+
+        if not hsn_data:
+            return elements
+
+        # Section header
+        elements.append(Paragraph("<b>HSN-wise Tax Summary</b>", self.styles['SectionHeader']))
+
+        # Build table
+        headers = ['HSN Code', 'Taxable Value', 'GST Rate', 'CGST', 'SGST', 'IGST', 'Total Tax']
+        col_widths = [25*mm, 35*mm, 20*mm, 25*mm, 25*mm, 25*mm, 25*mm]
+
+        header_row = [Paragraph(f"<b>{h}</b>", ParagraphStyle(
+            'HSNHeader',
+            parent=self.styles['Normal'],
+            fontSize=8,
+            fontName='Helvetica-Bold',
+            textColor=colors.white,
+            alignment=TA_CENTER
+        )) for h in headers]
+
+        table_data = [header_row]
+
+        totals = {'taxable': 0, 'cgst': 0, 'sgst': 0, 'igst': 0, 'total_tax': 0}
+
+        for hsn, data in hsn_data.items():
+            total_tax = data['cgst'] + data['sgst'] + data['igst']
+            row = [
+                hsn,
+                format_currency(data['taxable']),
+                f"{int(data['gst_rate'])}%",
+                format_currency(data['cgst']),
+                format_currency(data['sgst']),
+                format_currency(data['igst']),
+                format_currency(total_tax)
+            ]
+            table_data.append(row)
+            totals['taxable'] += data['taxable']
+            totals['cgst'] += data['cgst']
+            totals['sgst'] += data['sgst']
+            totals['igst'] += data['igst']
+            totals['total_tax'] += total_tax
+
+        # Total row
+        table_data.append([
+            Paragraph("<b>Total</b>", ParagraphStyle('HSNTotal', fontSize=8, fontName='Helvetica-Bold')),
+            Paragraph(f"<b>{format_currency(totals['taxable'])}</b>", ParagraphStyle('HSNTotal', fontSize=8, fontName='Helvetica-Bold', alignment=TA_RIGHT)),
+            '',
+            Paragraph(f"<b>{format_currency(totals['cgst'])}</b>", ParagraphStyle('HSNTotal', fontSize=8, fontName='Helvetica-Bold', alignment=TA_RIGHT)),
+            Paragraph(f"<b>{format_currency(totals['sgst'])}</b>", ParagraphStyle('HSNTotal', fontSize=8, fontName='Helvetica-Bold', alignment=TA_RIGHT)),
+            Paragraph(f"<b>{format_currency(totals['igst'])}</b>", ParagraphStyle('HSNTotal', fontSize=8, fontName='Helvetica-Bold', alignment=TA_RIGHT)),
+            Paragraph(f"<b>{format_currency(totals['total_tax'])}</b>", ParagraphStyle('HSNTotal', fontSize=8, fontName='Helvetica-Bold', alignment=TA_RIGHT)),
+        ])
+
+        hsn_table = Table(table_data, colWidths=col_widths)
+        hsn_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), COLORS['secondary']),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+            ('FONTSIZE', (0, 0), (-1, -1), 8),
+            ('ALIGN', (0, 0), (0, -1), 'CENTER'),
+            ('ALIGN', (1, 1), (-1, -1), 'RIGHT'),
+            ('BOX', (0, 0), (-1, -1), 0.5, COLORS['border']),
+            ('INNERGRID', (0, 0), (-1, -1), 0.25, COLORS['border']),
+            ('BACKGROUND', (0, -1), (-1, -1), COLORS['light_bg']),
+            ('TOPPADDING', (0, 0), (-1, -1), 4),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+        ]))
+        elements.append(hsn_table)
 
         return elements
 
@@ -617,6 +749,264 @@ class PDFGenerator:
 
             return True
 
+        except Exception as e:
+            print(f"Print error: {e}")
+            return False
+
+    def generate_credit_note_pdf(self, credit_note: CreditNote, output_path: str = None) -> bytes:
+        """
+        Generate professional PDF for a credit note
+
+        Args:
+            credit_note: CreditNote object with items
+            output_path: Optional path to save PDF file
+
+        Returns:
+            PDF bytes if no output_path, else saves to file
+        """
+        # Get company details
+        company = Company.get()
+        if not company:
+            company = Company(
+                name="Your Shop Name",
+                address="Address Line, City, State - PIN",
+                gstin="",
+                phone=""
+            )
+
+        # Create PDF
+        buffer = BytesIO()
+        doc = SimpleDocTemplate(
+            buffer,
+            pagesize=A4,
+            rightMargin=self.margin,
+            leftMargin=self.margin,
+            topMargin=self.margin,
+            bottomMargin=self.margin
+        )
+
+        elements = []
+        content_width = self.page_width - 2 * self.margin
+
+        # ==================== HEADER SECTION ====================
+        elements.extend(self._build_header(company, content_width))
+
+        # ==================== CREDIT NOTE TITLE BAR ====================
+        elements.append(Spacer(1, 5*mm))
+        title_table = Table(
+            [[Paragraph("CREDIT NOTE", self.styles['InvoiceTitle'])]],
+            colWidths=[content_width]
+        )
+        title_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#c0392b')),  # Red for credit note
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('TOPPADDING', (0, 0), (-1, -1), 6),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+        ]))
+        elements.append(title_table)
+
+        # ==================== CREDIT NOTE INFO ====================
+        elements.append(Spacer(1, 5*mm))
+        elements.extend(self._build_credit_note_info(credit_note, company, content_width))
+
+        # ==================== ITEMS TABLE ====================
+        elements.append(Spacer(1, 5*mm))
+        elements.extend(self._build_credit_note_items_table(credit_note, content_width))
+
+        # ==================== TOTALS SECTION ====================
+        elements.append(Spacer(1, 3*mm))
+        elements.extend(self._build_credit_note_totals(credit_note, content_width))
+
+        # ==================== AMOUNT IN WORDS ====================
+        elements.append(Spacer(1, 3*mm))
+        amount_words = number_to_words_indian(credit_note.grand_total)
+        elements.append(Paragraph(
+            f"<b>Credit Amount in Words:</b> {amount_words}",
+            self.styles['AmountWords']
+        ))
+
+        # ==================== FOOTER ====================
+        elements.append(Spacer(1, 10*mm))
+        elements.extend(self._build_footer(company, content_width))
+
+        # Build PDF
+        doc.build(elements)
+
+        pdf_bytes = buffer.getvalue()
+        buffer.close()
+
+        if output_path:
+            with open(output_path, 'wb') as f:
+                f.write(pdf_bytes)
+
+        return pdf_bytes
+
+    def _build_credit_note_info(self, credit_note: CreditNote, company: Company, content_width: float) -> list:
+        """Build credit note info section"""
+        elements = []
+
+        cn_date = credit_note.credit_note_date
+        if isinstance(cn_date, str):
+            cn_date = date.fromisoformat(cn_date)
+
+        # Left column - Credit Note details
+        info_details = [
+            [Paragraph("<b>Credit Note No:</b>", self.styles['NormalText']),
+             Paragraph(credit_note.credit_note_number, self.styles['NormalText'])],
+            [Paragraph("<b>Date:</b>", self.styles['NormalText']),
+             Paragraph(format_date(cn_date), self.styles['NormalText'])],
+            [Paragraph("<b>Original Invoice:</b>", self.styles['NormalText']),
+             Paragraph(credit_note.original_invoice_number or "-", self.styles['NormalText'])],
+            [Paragraph("<b>Reason:</b>", self.styles['NormalText']),
+             Paragraph(credit_note.reason, self.styles['NormalText'])],
+        ]
+
+        left_table = Table(info_details, colWidths=[35*mm, 50*mm])
+        left_table.setStyle(TableStyle([
+            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+            ('LEFTPADDING', (0, 0), (-1, -1), 0),
+            ('TOPPADDING', (0, 0), (-1, -1), 2),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 2),
+        ]))
+
+        # Right column - Customer details
+        customer_content = []
+        customer_content.append(Paragraph("<b>Customer:</b>", self.styles['NormalText']))
+        customer_content.append(Paragraph(credit_note.customer_name or "Cash Customer", self.styles['NormalText']))
+
+        if credit_note.customer_id:
+            from database.models import Customer
+            customer = Customer.get_by_id(credit_note.customer_id)
+            if customer:
+                if customer.address:
+                    customer_content.append(Paragraph(customer.address, self.styles['NormalText']))
+                if customer.gstin:
+                    customer_content.append(Paragraph(f"<b>GSTIN:</b> {customer.gstin}", self.styles['NormalText']))
+
+        right_table = Table([[customer_content]], colWidths=[content_width/2 - 10*mm])
+        right_table.setStyle(TableStyle([
+            ('BOX', (0, 0), (-1, -1), 0.5, COLORS['border']),
+            ('BACKGROUND', (0, 0), (-1, -1), COLORS['light_bg']),
+            ('LEFTPADDING', (0, 0), (-1, -1), 8),
+            ('TOPPADDING', (0, 0), (-1, -1), 5),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
+        ]))
+
+        main_table = Table(
+            [[left_table, right_table]],
+            colWidths=[content_width/2 + 10*mm, content_width/2 - 10*mm]
+        )
+        main_table.setStyle(TableStyle([
+            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+        ]))
+        elements.append(main_table)
+
+        return elements
+
+    def _build_credit_note_items_table(self, credit_note: CreditNote, content_width: float) -> list:
+        """Build credit note items table"""
+        elements = []
+
+        headers = ['#', 'Description', 'HSN', 'Qty', 'Rate', 'GST%', 'CGST', 'SGST', 'Amount']
+        col_widths = [8*mm, 45*mm, 18*mm, 15*mm, 22*mm, 12*mm, 18*mm, 18*mm, 24*mm]
+
+        header_row = [Paragraph(f"<b>{h}</b>", ParagraphStyle(
+            'TableHeader',
+            fontSize=8,
+            fontName='Helvetica-Bold',
+            textColor=colors.white,
+            alignment=TA_CENTER
+        )) for h in headers]
+
+        items_data = [header_row]
+
+        for idx, item in enumerate(credit_note.items, 1):
+            row = [
+                str(idx),
+                item.product_name[:30],
+                item.hsn_code or '-',
+                f"{item.qty:.2f}".rstrip('0').rstrip('.'),
+                format_currency(item.rate),
+                f"{int(item.gst_rate)}%",
+                format_currency(item.cgst),
+                format_currency(item.sgst),
+                format_currency(item.total)
+            ]
+            items_data.append(row)
+
+        items_table = Table(items_data, colWidths=col_widths)
+        items_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#c0392b')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+            ('FONTSIZE', (0, 0), (-1, -1), 8),
+            ('ALIGN', (0, 1), (0, -1), 'CENTER'),
+            ('ALIGN', (4, 1), (-1, -1), 'RIGHT'),
+            ('BOX', (0, 0), (-1, -1), 1, colors.HexColor('#c0392b')),
+            ('INNERGRID', (0, 0), (-1, -1), 0.5, COLORS['border']),
+            ('TOPPADDING', (0, 0), (-1, -1), 5),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
+        ]))
+        elements.append(items_table)
+
+        return elements
+
+    def _build_credit_note_totals(self, credit_note: CreditNote, content_width: float) -> list:
+        """Build credit note totals section"""
+        elements = []
+
+        totals_rows = [
+            ['Taxable Value:', format_currency(credit_note.subtotal)],
+        ]
+
+        if credit_note.cgst_total > 0:
+            totals_rows.append(['CGST:', format_currency(credit_note.cgst_total)])
+        if credit_note.sgst_total > 0:
+            totals_rows.append(['SGST:', format_currency(credit_note.sgst_total)])
+        if credit_note.igst_total > 0:
+            totals_rows.append(['IGST:', format_currency(credit_note.igst_total)])
+
+        totals_rows.append(['CREDIT TOTAL:', format_currency(credit_note.grand_total)])
+
+        totals_table = Table(totals_rows, colWidths=[content_width - 50*mm, 50*mm])
+        totals_table.setStyle(TableStyle([
+            ('FONTNAME', (0, 0), (-1, -2), 'Helvetica'),
+            ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, -1), 10),
+            ('ALIGN', (0, 0), (-1, -1), 'RIGHT'),
+            ('TOPPADDING', (0, 0), (-1, -1), 4),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+            ('BACKGROUND', (0, -1), (-1, -1), colors.HexColor('#fadbd8')),
+            ('LINEABOVE', (0, -1), (-1, -1), 1.5, colors.HexColor('#c0392b')),
+            ('FONTSIZE', (0, -1), (-1, -1), 12),
+            ('TEXTCOLOR', (0, -1), (-1, -1), colors.HexColor('#c0392b')),
+            ('BOX', (0, 0), (-1, -1), 0.5, COLORS['border']),
+        ]))
+        elements.append(totals_table)
+
+        return elements
+
+    def print_credit_note(self, credit_note: CreditNote) -> bool:
+        """Generate and print credit note"""
+        import tempfile
+        import subprocess
+        import platform
+
+        try:
+            with tempfile.NamedTemporaryFile(suffix='.pdf', delete=False) as f:
+                pdf_path = f.name
+                self.generate_credit_note_pdf(credit_note, pdf_path)
+
+            system = platform.system()
+            if system == 'Windows':
+                import os
+                os.startfile(pdf_path, 'print')
+            elif system == 'Darwin':
+                subprocess.run(['lpr', pdf_path])
+            else:
+                subprocess.run(['lpr', pdf_path])
+
+            return True
         except Exception as e:
             print(f"Print error: {e}")
             return False

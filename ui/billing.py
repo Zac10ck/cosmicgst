@@ -214,6 +214,7 @@ class BillingFrame(ctk.CTkFrame):
         self.payment_mode = "single"  # "single" or "split"
         self.payment_var = ctk.StringVar(value="CASH")
         self.split_payments = []  # List of payment dicts
+        self.split_payment_rows = []  # List of split payment row widgets
 
         ctk.CTkButton(
             quick_buttons,

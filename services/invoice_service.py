@@ -168,6 +168,28 @@ class InvoiceService:
             'payment_breakdown': payment_breakdown
         }
 
+    def get_sales_by_date_range(self, start_date: date, end_date: date) -> dict:
+        """Get sales summary for date range"""
+        invoices = Invoice.get_by_date_range(start_date, end_date)
+
+        total_sales = 0
+        total_tax = 0
+        invoice_count = 0
+
+        for inv in invoices:
+            if not inv.is_cancelled:
+                total_sales += inv.grand_total
+                total_tax += (inv.cgst_total + inv.sgst_total + inv.igst_total)
+                invoice_count += 1
+
+        return {
+            'start_date': start_date,
+            'end_date': end_date,
+            'total_sales': round(total_sales, 2),
+            'total_tax': round(total_tax, 2),
+            'invoice_count': invoice_count
+        }
+
     def get_gst_summary(self, start_date: date, end_date: date) -> dict:
         """Get GST summary for date range"""
         invoices = Invoice.get_by_date_range(start_date, end_date)

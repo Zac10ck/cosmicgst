@@ -60,6 +60,8 @@ class Product:
     low_stock_alert: float = 10.0
     is_active: bool = True
     created_at: Optional[datetime] = None
+    category_id: Optional[int] = None
+    purchase_price: float = 0.0
 
     @classmethod
     def get_all(cls, active_only: bool = True) -> List['Product']:
@@ -124,15 +126,17 @@ class Product:
         if self.id:
             conn.execute("""
                 UPDATE products SET name=?, barcode=?, hsn_code=?, unit=?, price=?,
-                gst_rate=?, stock_qty=?, low_stock_alert=?, is_active=? WHERE id=?
+                gst_rate=?, stock_qty=?, low_stock_alert=?, is_active=?, category_id=?, purchase_price=? WHERE id=?
             """, (self.name, self.barcode, self.hsn_code, self.unit, self.price,
-                  self.gst_rate, self.stock_qty, self.low_stock_alert, self.is_active, self.id))
+                  self.gst_rate, self.stock_qty, self.low_stock_alert, self.is_active,
+                  self.category_id, self.purchase_price, self.id))
         else:
             cursor = conn.execute("""
-                INSERT INTO products (name, barcode, hsn_code, unit, price, gst_rate, stock_qty, low_stock_alert, is_active)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO products (name, barcode, hsn_code, unit, price, gst_rate, stock_qty, low_stock_alert, is_active, category_id, purchase_price)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (self.name, self.barcode, self.hsn_code, self.unit, self.price,
-                  self.gst_rate, self.stock_qty, self.low_stock_alert, self.is_active))
+                  self.gst_rate, self.stock_qty, self.low_stock_alert, self.is_active,
+                  self.category_id, self.purchase_price))
             self.id = cursor.lastrowid
         conn.commit()
         conn.close()
@@ -159,6 +163,8 @@ class Customer:
     gstin: str = ""
     state_code: str = "32"
     is_active: bool = True
+    credit_balance: float = 0.0
+    credit_limit: float = 0.0
 
     @classmethod
     def get_all(cls, active_only: bool = True) -> List['Customer']:
@@ -200,15 +206,25 @@ class Customer:
         conn = get_connection()
         if self.id:
             conn.execute("""
-                UPDATE customers SET name=?, phone=?, address=?, gstin=?, state_code=?, is_active=?
-                WHERE id=?
-            """, (self.name, self.phone, self.address, self.gstin, self.state_code, self.is_active, self.id))
+                UPDATE customers SET name=?, phone=?, address=?, gstin=?, state_code=?, is_active=?,
+                credit_balance=?, credit_limit=? WHERE id=?
+            """, (self.name, self.phone, self.address, self.gstin, self.state_code, self.is_active,
+                  self.credit_balance, self.credit_limit, self.id))
         else:
             cursor = conn.execute("""
-                INSERT INTO customers (name, phone, address, gstin, state_code, is_active)
-                VALUES (?, ?, ?, ?, ?, ?)
-            """, (self.name, self.phone, self.address, self.gstin, self.state_code, self.is_active))
+                INSERT INTO customers (name, phone, address, gstin, state_code, is_active, credit_balance, credit_limit)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """, (self.name, self.phone, self.address, self.gstin, self.state_code, self.is_active,
+                  self.credit_balance, self.credit_limit))
             self.id = cursor.lastrowid
+        conn.commit()
+        conn.close()
+
+    def update_credit(self, amount: float):
+        """Update customer credit balance (positive = add credit, negative = reduce)"""
+        conn = get_connection()
+        self.credit_balance += amount
+        conn.execute("UPDATE customers SET credit_balance = ? WHERE id = ?", (self.credit_balance, self.id))
         conn.commit()
         conn.close()
 
@@ -383,3 +399,145 @@ class StockLog:
         """, (product_id,)).fetchall()
         conn.close()
         return [cls(**dict(row)) for row in rows]
+
+
+@dataclass
+class Category:
+    """Product category model"""
+    id: Optional[int] = None
+    name: str = ""
+    description: str = ""
+    is_active: bool = True
+
+    @classmethod
+    def get_all(cls, active_only: bool = True) -> List['Category']:
+        """Get all categories"""
+        conn = get_connection()
+        query = "SELECT * FROM categories"
+        if active_only:
+            query += " WHERE is_active = 1"
+        query += " ORDER BY name"
+        rows = conn.execute(query).fetchall()
+        conn.close()
+        return [cls(**dict(row)) for row in rows]
+
+    @classmethod
+    def get_by_id(cls, category_id: int) -> Optional['Category']:
+        """Get category by ID"""
+        conn = get_connection()
+        row = conn.execute("SELECT * FROM categories WHERE id = ?", (category_id,)).fetchone()
+        conn.close()
+        if row:
+            return cls(**dict(row))
+        return None
+
+    def save(self):
+        """Save or update category"""
+        conn = get_connection()
+        if self.id:
+            conn.execute("""
+                UPDATE categories SET name=?, description=?, is_active=? WHERE id=?
+            """, (self.name, self.description, self.is_active, self.id))
+        else:
+            cursor = conn.execute("""
+                INSERT INTO categories (name, description, is_active) VALUES (?, ?, ?)
+            """, (self.name, self.description, self.is_active))
+            self.id = cursor.lastrowid
+        conn.commit()
+        conn.close()
+
+    def delete(self):
+        """Soft delete category"""
+        self.is_active = False
+        self.save()
+
+
+@dataclass
+class HeldBill:
+    """Held bill for hold/recall feature"""
+    id: Optional[int] = None
+    hold_name: str = ""
+    customer_id: Optional[int] = None
+    customer_name: str = ""
+    items_json: str = "[]"
+    discount: float = 0.0
+    created_at: Optional[datetime] = None
+
+    @classmethod
+    def get_all(cls) -> List['HeldBill']:
+        """Get all held bills"""
+        conn = get_connection()
+        rows = conn.execute("SELECT * FROM held_bills ORDER BY created_at DESC").fetchall()
+        conn.close()
+        return [cls(**dict(row)) for row in rows]
+
+    @classmethod
+    def get_by_id(cls, bill_id: int) -> Optional['HeldBill']:
+        """Get held bill by ID"""
+        conn = get_connection()
+        row = conn.execute("SELECT * FROM held_bills WHERE id = ?", (bill_id,)).fetchone()
+        conn.close()
+        if row:
+            return cls(**dict(row))
+        return None
+
+    def save(self):
+        """Save held bill"""
+        conn = get_connection()
+        if self.id:
+            conn.execute("""
+                UPDATE held_bills SET hold_name=?, customer_id=?, customer_name=?,
+                items_json=?, discount=? WHERE id=?
+            """, (self.hold_name, self.customer_id, self.customer_name,
+                  self.items_json, self.discount, self.id))
+        else:
+            cursor = conn.execute("""
+                INSERT INTO held_bills (hold_name, customer_id, customer_name, items_json, discount)
+                VALUES (?, ?, ?, ?, ?)
+            """, (self.hold_name, self.customer_id, self.customer_name,
+                  self.items_json, self.discount))
+            self.id = cursor.lastrowid
+        conn.commit()
+        conn.close()
+
+    def delete(self):
+        """Delete held bill"""
+        conn = get_connection()
+        conn.execute("DELETE FROM held_bills WHERE id = ?", (self.id,))
+        conn.commit()
+        conn.close()
+
+
+@dataclass
+class AppSettings:
+    """Application settings (key-value store)"""
+    key: str = ""
+    value: str = ""
+
+    @classmethod
+    def get(cls, key: str, default: str = "") -> str:
+        """Get a setting value"""
+        conn = get_connection()
+        row = conn.execute("SELECT value FROM app_settings WHERE key = ?", (key,)).fetchone()
+        conn.close()
+        if row:
+            return row['value']
+        return default
+
+    @classmethod
+    def set(cls, key: str, value: str):
+        """Set a setting value"""
+        conn = get_connection()
+        conn.execute("""
+            INSERT OR REPLACE INTO app_settings (key, value) VALUES (?, ?)
+        """, (key, value))
+        conn.commit()
+        conn.close()
+
+    @classmethod
+    def get_all(cls) -> dict:
+        """Get all settings as a dictionary"""
+        conn = get_connection()
+        rows = conn.execute("SELECT key, value FROM app_settings").fetchall()
+        conn.close()
+        return {row['key']: row['value'] for row in rows}

@@ -117,11 +117,92 @@ def init_db():
         )
     """)
 
+    # Product Categories
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS categories (
+            id INTEGER PRIMARY KEY,
+            name TEXT NOT NULL UNIQUE,
+            description TEXT,
+            is_active INTEGER DEFAULT 1
+        )
+    """)
+
+    # Add category_id to products if not exists
+    try:
+        cursor.execute("ALTER TABLE products ADD COLUMN category_id INTEGER REFERENCES categories(id)")
+    except sqlite3.OperationalError:
+        pass  # Column already exists
+
+    # Add purchase_price to products if not exists (for profit calculation)
+    try:
+        cursor.execute("ALTER TABLE products ADD COLUMN purchase_price REAL DEFAULT 0")
+    except sqlite3.OperationalError:
+        pass
+
+    # Add credit_balance to customers if not exists
+    try:
+        cursor.execute("ALTER TABLE customers ADD COLUMN credit_balance REAL DEFAULT 0")
+    except sqlite3.OperationalError:
+        pass
+
+    # Add credit_limit to customers if not exists
+    try:
+        cursor.execute("ALTER TABLE customers ADD COLUMN credit_limit REAL DEFAULT 0")
+    except sqlite3.OperationalError:
+        pass
+
+    # Held Bills (for hold/recall feature)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS held_bills (
+            id INTEGER PRIMARY KEY,
+            hold_name TEXT,
+            customer_id INTEGER,
+            customer_name TEXT,
+            items_json TEXT,
+            discount REAL DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (customer_id) REFERENCES customers(id)
+        )
+    """)
+
+    # App Settings (for password, preferences, etc.)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS app_settings (
+            key TEXT PRIMARY KEY,
+            value TEXT
+        )
+    """)
+
+    # Add amount_paid and balance to invoices if not exists
+    try:
+        cursor.execute("ALTER TABLE invoices ADD COLUMN amount_paid REAL DEFAULT 0")
+    except sqlite3.OperationalError:
+        pass
+
+    try:
+        cursor.execute("ALTER TABLE invoices ADD COLUMN balance_due REAL DEFAULT 0")
+    except sqlite3.OperationalError:
+        pass
+
     # Create indexes for faster lookups
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_products_barcode ON products(barcode)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_products_name ON products(name)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_products_category ON products(category_id)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_invoices_date ON invoices(invoice_date)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_invoices_number ON invoices(invoice_number)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_invoices_customer ON invoices(customer_id)")
+
+    # Insert default categories if empty
+    cursor.execute("SELECT COUNT(*) FROM categories")
+    if cursor.fetchone()[0] == 0:
+        default_categories = [
+            ('General', 'Default category'),
+            ('Electronics', 'Electronic items'),
+            ('Groceries', 'Food and grocery items'),
+            ('Stationery', 'Office and school supplies'),
+            ('Clothing', 'Apparel and garments'),
+        ]
+        cursor.executemany("INSERT INTO categories (name, description) VALUES (?, ?)", default_categories)
 
     conn.commit()
     conn.close()

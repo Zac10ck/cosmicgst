@@ -25,6 +25,35 @@ class BillingFrame(ctk.CTkFrame):
         self.selected_customer = None
 
         self._create_widgets()
+        self._setup_keyboard_shortcuts()
+
+    def _setup_keyboard_shortcuts(self):
+        """Setup keyboard shortcuts for quick billing"""
+        # Get the top-level window
+        self.bind_all('<F1>', lambda e: self._focus_search())
+        self.bind_all('<F2>', lambda e: self._clear_cart())
+        self.bind_all('<F3>', lambda e: self._save_and_print())
+        self.bind_all('<F4>', lambda e: self._focus_discount())
+        self.bind_all('<F5>', lambda e: self._hold_bill())
+        self.bind_all('<F6>', lambda e: self._recall_bill())
+        self.bind_all('<Escape>', lambda e: self._on_escape())
+
+    def _focus_search(self):
+        """Focus on search entry (F1)"""
+        self.search_entry.focus_set()
+        self.search_var.set("")
+
+    def _focus_discount(self):
+        """Focus on discount entry (F4)"""
+        self.discount_entry.focus_set()
+        self.discount_entry.select_range(0, 'end')
+
+    def _on_escape(self):
+        """Handle escape key - clear search or unfocus"""
+        if self.search_var.get():
+            self.search_var.set("")
+            self.search_results_frame.grid_remove()
+        self.focus_set()
 
     def _create_widgets(self):
         """Create billing screen widgets"""
@@ -205,13 +234,45 @@ class BillingFrame(ctk.CTkFrame):
 
         ctk.CTkButton(
             actions_frame,
-            text="Save & Print",
+            text="Save & Print (F3)",
             height=45,
             fg_color="green",
             hover_color="darkgreen",
             font=ctk.CTkFont(size=14, weight="bold"),
             command=self._save_and_print
         ).grid(row=0, column=1, sticky="ew", padx=(5, 0))
+
+        # Hold/Recall buttons
+        hold_frame = ctk.CTkFrame(right_frame, fg_color="transparent")
+        hold_frame.grid(row=4, column=0, sticky="ew", padx=15, pady=(0, 10))
+        hold_frame.grid_columnconfigure((0, 1), weight=1)
+
+        ctk.CTkButton(
+            hold_frame,
+            text="Hold Bill (F5)",
+            height=35,
+            fg_color="orange",
+            hover_color="darkorange",
+            command=self._hold_bill
+        ).grid(row=0, column=0, sticky="ew", padx=(0, 5))
+
+        ctk.CTkButton(
+            hold_frame,
+            text="Recall Bill (F6)",
+            height=35,
+            fg_color="purple",
+            hover_color="darkviolet",
+            command=self._recall_bill
+        ).grid(row=0, column=1, sticky="ew", padx=(5, 0))
+
+        # Keyboard shortcuts hint
+        shortcuts_label = ctk.CTkLabel(
+            right_frame,
+            text="Shortcuts: F1-Search | F2-Clear | F3-Save | F4-Discount | F5-Hold | F6-Recall | Esc-Cancel",
+            font=ctk.CTkFont(size=10),
+            text_color="gray"
+        )
+        shortcuts_label.grid(row=5, column=0, sticky="ew", padx=15, pady=(5, 10))
 
     def _create_total_row(self, parent, label: str, row: int):
         """Create a totals row"""
@@ -478,6 +539,120 @@ class BillingFrame(ctk.CTkFrame):
 
         # Clear cart
         self._clear_cart()
+
+    def _hold_bill(self):
+        """Hold current bill for later recall (F5)"""
+        if not self.cart:
+            messagebox.showinfo("No Items", "Cart is empty. Nothing to hold.")
+            return
+
+        from database.models import HeldBill
+        import json
+
+        # Build items JSON
+        items = []
+        for item in self.cart:
+            items.append({
+                'product_id': item['product_id'],
+                'qty': item['qty']
+            })
+
+        try:
+            discount = float(self.discount_var.get() or 0)
+        except ValueError:
+            discount = 0
+
+        # Create held bill
+        held_bill = HeldBill(
+            hold_name=f"Bill #{len(HeldBill.get_all()) + 1}",
+            customer_id=self.selected_customer.id if self.selected_customer else None,
+            customer_name=self.selected_customer.name if self.selected_customer else "Cash Customer",
+            items_json=json.dumps(items),
+            discount=discount
+        )
+        held_bill.save()
+
+        messagebox.showinfo("Bill Held", f"Bill held as '{held_bill.hold_name}'.\nPress F6 to recall.")
+        self._clear_cart()
+
+    def _recall_bill(self):
+        """Recall a held bill (F6)"""
+        from database.models import HeldBill
+        import json
+
+        held_bills = HeldBill.get_all()
+        if not held_bills:
+            messagebox.showinfo("No Held Bills", "No bills on hold.")
+            return
+
+        # Show recall dialog
+        dialog = ctk.CTkToplevel(self)
+        dialog.title("Recall Bill")
+        dialog.geometry("400x300")
+        dialog.transient(self)
+        dialog.grab_set()
+
+        ctk.CTkLabel(
+            dialog,
+            text="Select Bill to Recall:",
+            font=ctk.CTkFont(size=14, weight="bold")
+        ).pack(pady=(15, 10), padx=15, anchor="w")
+
+        scroll = ctk.CTkScrollableFrame(dialog, height=180)
+        scroll.pack(fill="both", expand=True, padx=15, pady=(0, 10))
+
+        def recall_selected(bill):
+            # Load cart from held bill
+            self._clear_cart()
+            items = json.loads(bill.items_json)
+            for item_data in items:
+                product = Product.get_by_id(item_data['product_id'])
+                if product:
+                    self._add_to_cart(product, item_data['qty'])
+
+            self.discount_var.set(str(bill.discount))
+            if bill.customer_id:
+                customer = Customer.get_by_id(bill.customer_id)
+                if customer:
+                    self.selected_customer = customer
+                    self.customer_var.set(customer.name)
+
+            # Delete the held bill
+            bill.delete()
+            dialog.destroy()
+
+        for bill in held_bills:
+            frame = ctk.CTkFrame(scroll, fg_color="transparent")
+            frame.pack(fill="x", pady=2)
+
+            ctk.CTkLabel(
+                frame,
+                text=f"{bill.hold_name} - {bill.customer_name}",
+                font=ctk.CTkFont(size=12)
+            ).pack(side="left", padx=5)
+
+            ctk.CTkButton(
+                frame,
+                text="Recall",
+                width=70,
+                height=28,
+                fg_color="purple",
+                command=lambda b=bill: recall_selected(b)
+            ).pack(side="right", padx=5)
+
+            ctk.CTkButton(
+                frame,
+                text="Delete",
+                width=70,
+                height=28,
+                fg_color="red",
+                command=lambda b=bill, f=frame: self._delete_held_bill(b, f)
+            ).pack(side="right", padx=2)
+
+    def _delete_held_bill(self, bill, frame):
+        """Delete a held bill"""
+        bill.delete()
+        frame.destroy()
 
     def refresh(self):
         """Refresh customer list"""

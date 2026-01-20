@@ -271,6 +271,9 @@ class Invoice:
     transport_distance: int = 0
     transporter_id: str = ""
     eway_bill_number: str = ""
+    # Payment tracking fields (CRITICAL - must match database schema)
+    amount_paid: float = 0.0
+    balance_due: float = 0.0
 
     @classmethod
     def get_by_id(cls, invoice_id: int) -> Optional['Invoice']:

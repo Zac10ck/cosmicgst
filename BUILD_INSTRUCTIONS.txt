@@ -1,0 +1,104 @@
+=============================================
+  HOW TO CREATE GST_Billing.exe
+=============================================
+
+REQUIREMENTS:
+- Windows 10 or 11
+- Python 3.8 or higher (download from python.org)
+- Internet connection (to download packages)
+
+=============================================
+METHOD 1: Simple Build (Recommended)
+=============================================
+
+1. Copy the entire 'gst-billing' folder to your Windows PC
+
+2. Open the folder and double-click:
+   build_exe_simple.bat
+
+3. Wait 2-5 minutes for the build to complete
+
+4. Find your executable at:
+   dist\GST_Billing.exe
+
+5. Copy GST_Billing.exe to any location and run it!
+
+
+=============================================
+METHOD 2: Manual Build (If Method 1 fails)
+=============================================
+
+1. Open Command Prompt (cmd)
+
+2. Navigate to the gst-billing folder:
+   cd C:\path\to\gst-billing
+
+3. Install dependencies:
+   pip install customtkinter pillow reportlab num2words python-dateutil pyinstaller
+
+4. Build the executable:
+   pyinstaller --onefile --windowed --name "GST_Billing" main.py
+
+5. Find your executable at:
+   dist\GST_Billing.exe
+
+
+=============================================
+TROUBLESHOOTING
+=============================================
+
+ERROR: "Python not found"
+- Install Python from https://www.python.org/downloads/
+- During installation, CHECK "Add Python to PATH"
+
+ERROR: "pip not found"
+- Open cmd and run: python -m pip install --upgrade pip
+
+ERROR: Build fails with import errors
+- Run: pip install --upgrade customtkinter pillow reportlab
+
+ERROR: Antivirus blocks the exe
+- This is a false positive (common with PyInstaller)
+- Add an exception in your antivirus for the exe file
+
+
+=============================================
+AFTER BUILDING
+=============================================
+
+The GST_Billing.exe file:
+- Is completely standalone (no Python needed)
+- Can be copied to any Windows PC
+- Creates a 'data' folder next to it for the database
+- Size: approximately 50-80 MB
+
+First Run:
+- The app will create a 'data' folder automatically
+- Set up your company details in Settings
+- Start adding products and creating bills!
+
+
+=============================================
+BACKUP SETUP
+=============================================
+
+For automatic Google Drive backup:
+1. Install Google Drive for Desktop on the shop PC
+2. Sign in with a Google account
+3. The app will automatically save backups to:
+   Google Drive\Billing Backup\
+
+Manual backups can be created anytime from:
+Settings > Backup > Backup Now
+
+
+=============================================
+NEED HELP?
+=============================================
+
+If you encounter any issues:
+1. Make sure Python 3.8+ is installed
+2. Make sure you have internet connection
+3. Try running build_exe_simple.bat as Administrator
+   (Right-click > Run as administrator)
+

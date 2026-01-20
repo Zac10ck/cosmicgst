@@ -1,0 +1,190 @@
+=============================================
+   GST BILLING SOFTWARE - COMPLETE SETUP GUIDE
+=============================================
+
+This guide will help you:
+1. Install Python (5 minutes)
+2. Build the EXE file (5 minutes)
+3. Run on your shop PC
+
+
+=============================================
+STEP 1: DOWNLOAD PYTHON
+=============================================
+
+1. Open your web browser (Chrome/Edge/Firefox)
+
+2. Go to: https://www.python.org/downloads/
+
+3. Click the big yellow button: "Download Python 3.x.x"
+   (The version number doesn't matter, just get the latest)
+
+4. A file will download (about 25 MB):
+   python-3.x.x-amd64.exe
+
+
+=============================================
+STEP 2: INSTALL PYTHON (Important!)
+=============================================
+
+1. Double-click the downloaded file: python-3.x.x-amd64.exe
+
+2. **IMPORTANT: Check the box at the bottom that says:**
+   [✓] "Add Python to PATH"
+
+   This is very important! Don't skip this!
+
+3. Click "Install Now"
+
+4. Wait for installation to complete (1-2 minutes)
+
+5. Click "Close" when done
+
+
+=============================================
+STEP 3: VERIFY PYTHON INSTALLED
+=============================================
+
+1. Press Windows Key + R (opens Run dialog)
+
+2. Type: cmd
+   Press Enter
+
+3. In the black window, type:
+   python --version
+   Press Enter
+
+4. You should see something like:
+   Python 3.12.0
+
+   If you see this, Python is installed correctly!
+
+   If you see "not recognized", restart your computer
+   and try again.
+
+
+=============================================
+STEP 4: COPY GST BILLING FOLDER
+=============================================
+
+1. Copy the entire "gst-billing" folder to your PC
+
+   You can put it anywhere, for example:
+   C:\gst-billing
+
+   or on Desktop:
+   C:\Users\YourName\Desktop\gst-billing
+
+
+=============================================
+STEP 5: BUILD THE EXE
+=============================================
+
+1. Open the gst-billing folder
+
+2. Double-click: build_exe_simple.bat
+
+3. A black window will open and show progress:
+   - Installing dependencies (1-2 minutes)
+   - Creating icon
+   - Building executable (2-3 minutes)
+
+4. Wait until you see "SUCCESS!"
+
+5. Your EXE file is ready at:
+   gst-billing\dist\GST_Billing.exe
+
+
+=============================================
+STEP 6: USE THE SOFTWARE
+=============================================
+
+Option A: Run directly
+- Double-click dist\GST_Billing.exe
+- The app will start!
+
+Option B: Copy to shop PC
+- Copy GST_Billing.exe to your shop computer
+- No Python needed on shop PC!
+- Just double-click to run
+
+
+=============================================
+FIRST TIME SETUP IN THE APP
+=============================================
+
+1. Go to Settings tab
+
+2. Enter your shop details:
+   - Shop Name
+   - Address
+   - GSTIN (if registered)
+   - Phone number
+
+3. Click "Save"
+
+4. Go to Products tab
+
+5. Add your products:
+   - Click "+ Add Product"
+   - Enter name, price, GST rate, stock
+   - Click Save
+
+6. Start billing!
+   - Go to "New Bill" tab
+   - Search/scan products
+   - Add to cart
+   - Click "Save & Print"
+
+
+=============================================
+BACKUP SETUP (Recommended)
+=============================================
+
+To automatically backup to Google Drive:
+
+1. Download Google Drive for Desktop:
+   https://www.google.com/drive/download/
+
+2. Install and sign in with Google account
+
+3. The app will automatically save backups to:
+   Google Drive > Billing Backup
+
+
+=============================================
+TROUBLESHOOTING
+=============================================
+
+Problem: "Python not found" error
+Solution:
+- Restart your computer
+- Make sure you checked "Add to PATH" during install
+- Reinstall Python if needed
+
+Problem: Build fails with errors
+Solution:
+- Make sure you have internet connection
+- Try running build_exe_simple.bat as Administrator
+  (Right-click > Run as administrator)
+
+Problem: Antivirus blocks the exe
+Solution:
+- This is a false positive (common with PyInstaller)
+- Add exception in antivirus for GST_Billing.exe
+
+Problem: App doesn't start
+Solution:
+- Try running from command prompt to see errors:
+  Open cmd, navigate to folder, type: GST_Billing.exe
+
+
+=============================================
+NEED HELP?
+=============================================
+
+If you're stuck at any step, let me know:
+- Which step you're on
+- What error message you see
+- I'll help you fix it!
+

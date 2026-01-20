@@ -1,0 +1,486 @@
+"""Billing screen with barcode scanner support"""
+import customtkinter as ctk
+from tkinter import messagebox
+from datetime import date
+from database.models import Product, Customer
+from services.invoice_service import InvoiceService
+from services.gst_calculator import GSTCalculator, CartItem
+from services.pdf_generator import PDFGenerator
+from utils.formatters import format_currency
+from config import PAYMENT_MODES
+
+
+class BillingFrame(ctk.CTkFrame):
+    """Main billing/invoicing screen"""
+
+    def __init__(self, parent, controller):
+        super().__init__(parent, fg_color="transparent")
+        self.controller = controller
+        self.invoice_service = InvoiceService()
+        self.gst_calc = GSTCalculator()
+        self.pdf_gen = PDFGenerator()
+
+        # Cart items: list of dicts with product_id, product, qty
+        self.cart = []
+        self.selected_customer = None
+
+        self._create_widgets()
+
+    def _create_widgets(self):
+        """Create billing screen widgets"""
+        self.grid_columnconfigure(0, weight=2)
+        self.grid_columnconfigure(1, weight=1)
+        self.grid_rowconfigure(1, weight=1)
+
+        # Title
+        title = ctk.CTkLabel(
+            self,
+            text="New Bill",
+            font=ctk.CTkFont(size=24, weight="bold")
+        )
+        title.grid(row=0, column=0, columnspan=2, pady=(0, 15), sticky="w")
+
+        # Left side - Product search and cart
+        left_frame = ctk.CTkFrame(self)
+        left_frame.grid(row=1, column=0, sticky="nsew", padx=(0, 10))
+        left_frame.grid_columnconfigure(0, weight=1)
+        left_frame.grid_rowconfigure(2, weight=1)
+
+        # Search bar (barcode scanner input goes here)
+        search_frame = ctk.CTkFrame(left_frame, fg_color="transparent")
+        search_frame.grid(row=0, column=0, sticky="ew", padx=15, pady=15)
+        search_frame.grid_columnconfigure(0, weight=1)
+
+        ctk.CTkLabel(
+            search_frame,
+            text="Scan Barcode or Search Product:",
+            font=ctk.CTkFont(size=12)
+        ).grid(row=0, column=0, sticky="w")
+
+        self.search_var = ctk.StringVar()
+        self.search_entry = ctk.CTkEntry(
+            search_frame,
+            textvariable=self.search_var,
+            placeholder_text="Scan barcode or type product name...",
+            height=40,
+            font=ctk.CTkFont(size=14)
+        )
+        self.search_entry.grid(row=1, column=0, sticky="ew", pady=(5, 0))
+        self.search_entry.bind('<Return>', self._on_search)
+        self.search_entry.bind('<KeyRelease>', self._on_search_key)
+
+        # Search results dropdown
+        self.search_results_frame = ctk.CTkFrame(left_frame)
+        self.search_results_frame.grid(row=1, column=0, sticky="ew", padx=15)
+        self.search_results_frame.grid_remove()  # Hidden initially
+
+        # Cart table
+        cart_frame = ctk.CTkFrame(left_frame, fg_color="transparent")
+        cart_frame.grid(row=2, column=0, sticky="nsew", padx=15, pady=10)
+        cart_frame.grid_columnconfigure(0, weight=1)
+        cart_frame.grid_rowconfigure(1, weight=1)
+
+        # Cart header
+        header_frame = ctk.CTkFrame(cart_frame, fg_color=("gray80", "gray30"), height=40)
+        header_frame.grid(row=0, column=0, sticky="ew")
+        header_frame.grid_columnconfigure((0, 1, 2, 3, 4, 5), weight=1)
+
+        headers = ['#', 'Product', 'Rate', 'Qty', 'GST', 'Amount']
+        for i, h in enumerate(headers):
+            ctk.CTkLabel(
+                header_frame,
+                text=h,
+                font=ctk.CTkFont(size=12, weight="bold")
+            ).grid(row=0, column=i, padx=10, pady=8)
+
+        # Cart items scrollable
+        self.cart_scroll = ctk.CTkScrollableFrame(cart_frame, fg_color="transparent")
+        self.cart_scroll.grid(row=1, column=0, sticky="nsew")
+        self.cart_scroll.grid_columnconfigure((0, 1, 2, 3, 4, 5), weight=1)
+
+        # Right side - Customer and totals
+        right_frame = ctk.CTkFrame(self)
+        right_frame.grid(row=1, column=1, sticky="nsew")
+        right_frame.grid_columnconfigure(0, weight=1)
+
+        # Customer selection
+        customer_frame = ctk.CTkFrame(right_frame, fg_color="transparent")
+        customer_frame.grid(row=0, column=0, sticky="ew", padx=15, pady=15)
+        customer_frame.grid_columnconfigure(0, weight=1)
+
+        ctk.CTkLabel(
+            customer_frame,
+            text="Customer (Optional):",
+            font=ctk.CTkFont(size=12)
+        ).grid(row=0, column=0, sticky="w")
+
+        self.customer_var = ctk.StringVar(value="Cash Customer")
+        self.customer_combo = ctk.CTkComboBox(
+            customer_frame,
+            variable=self.customer_var,
+            values=["Cash Customer"],
+            height=35,
+            command=self._on_customer_select
+        )
+        self.customer_combo.grid(row=1, column=0, sticky="ew", pady=(5, 0))
+
+        # Totals display
+        totals_frame = ctk.CTkFrame(right_frame, fg_color="transparent")
+        totals_frame.grid(row=1, column=0, sticky="ew", padx=15, pady=10)
+        totals_frame.grid_columnconfigure(1, weight=1)
+
+        self.subtotal_label = self._create_total_row(totals_frame, "Subtotal:", 0)
+        self.cgst_label = self._create_total_row(totals_frame, "CGST:", 1)
+        self.sgst_label = self._create_total_row(totals_frame, "SGST:", 2)
+
+        # Discount
+        ctk.CTkLabel(
+            totals_frame,
+            text="Discount:",
+            font=ctk.CTkFont(size=12)
+        ).grid(row=3, column=0, sticky="w", pady=5)
+
+        self.discount_var = ctk.StringVar(value="0")
+        self.discount_entry = ctk.CTkEntry(
+            totals_frame,
+            textvariable=self.discount_var,
+            width=100,
+            height=30
+        )
+        self.discount_entry.grid(row=3, column=1, sticky="e", pady=5)
+        self.discount_entry.bind('<KeyRelease>', self._update_totals)
+
+        # Grand total
+        ctk.CTkFrame(totals_frame, height=2, fg_color="gray").grid(
+            row=4, column=0, columnspan=2, sticky="ew", pady=10
+        )
+
+        self.grand_total_label = ctk.CTkLabel(
+            totals_frame,
+            text="0.00",
+            font=ctk.CTkFont(size=28, weight="bold")
+        )
+        ctk.CTkLabel(
+            totals_frame,
+            text="Grand Total:",
+            font=ctk.CTkFont(size=16, weight="bold")
+        ).grid(row=5, column=0, sticky="w")
+        self.grand_total_label.grid(row=5, column=1, sticky="e")
+
+        # Payment mode
+        payment_frame = ctk.CTkFrame(right_frame, fg_color="transparent")
+        payment_frame.grid(row=2, column=0, sticky="ew", padx=15, pady=10)
+
+        ctk.CTkLabel(
+            payment_frame,
+            text="Payment Mode:",
+            font=ctk.CTkFont(size=12)
+        ).pack(anchor="w")
+
+        self.payment_var = ctk.StringVar(value="CASH")
+        payment_buttons = ctk.CTkFrame(payment_frame, fg_color="transparent")
+        payment_buttons.pack(fill="x", pady=5)
+
+        for mode in PAYMENT_MODES[:4]:  # Show first 4 modes
+            ctk.CTkRadioButton(
+                payment_buttons,
+                text=mode,
+                variable=self.payment_var,
+                value=mode
+            ).pack(side="left", padx=(0, 15))
+
+        # Action buttons
+        actions_frame = ctk.CTkFrame(right_frame, fg_color="transparent")
+        actions_frame.grid(row=3, column=0, sticky="ew", padx=15, pady=20)
+        actions_frame.grid_columnconfigure((0, 1), weight=1)
+
+        ctk.CTkButton(
+            actions_frame,
+            text="Clear Cart",
+            height=45,
+            fg_color="gray",
+            hover_color="darkgray",
+            command=self._clear_cart
+        ).grid(row=0, column=0, sticky="ew", padx=(0, 5))
+
+        ctk.CTkButton(
+            actions_frame,
+            text="Save & Print",
+            height=45,
+            fg_color="green",
+            hover_color="darkgreen",
+            font=ctk.CTkFont(size=14, weight="bold"),
+            command=self._save_and_print
+        ).grid(row=0, column=1, sticky="ew", padx=(5, 0))
+
+    def _create_total_row(self, parent, label: str, row: int):
+        """Create a totals row"""
+        ctk.CTkLabel(
+            parent,
+            text=label,
+            font=ctk.CTkFont(size=12)
+        ).grid(row=row, column=0, sticky="w", pady=3)
+
+        value_label = ctk.CTkLabel(
+            parent,
+            text="0.00",
+            font=ctk.CTkFont(size=12)
+        )
+        value_label.grid(row=row, column=1, sticky="e", pady=3)
+        return value_label
+
+    def _on_search(self, event=None):
+        """Handle search/barcode scan"""
+        query = self.search_var.get().strip()
+        if not query:
+            return
+
+        # First try exact barcode match
+        product = Product.get_by_barcode(query)
+        if product:
+            self._add_to_cart(product)
+            self.search_var.set("")
+            self.search_results_frame.grid_remove()
+            return
+
+        # Otherwise search by name
+        products = Product.search(query)
+        if len(products) == 1:
+            self._add_to_cart(products[0])
+            self.search_var.set("")
+            self.search_results_frame.grid_remove()
+        elif products:
+            self._show_search_results(products)
+
+    def _on_search_key(self, event=None):
+        """Handle key release in search"""
+        query = self.search_var.get().strip()
+        if len(query) >= 2:
+            products = Product.search(query)
+            if products:
+                self._show_search_results(products)
+            else:
+                self.search_results_frame.grid_remove()
+        else:
+            self.search_results_frame.grid_remove()
+
+    def _show_search_results(self, products):
+        """Show search results dropdown"""
+        # Clear previous results
+        for widget in self.search_results_frame.winfo_children():
+            widget.destroy()
+
+        self.search_results_frame.grid()
+
+        for product in products[:8]:  # Show max 8 results
+            btn = ctk.CTkButton(
+                self.search_results_frame,
+                text=f"{product.name} - {format_currency(product.price)}",
+                fg_color="transparent",
+                text_color=("gray10", "gray90"),
+                hover_color=("gray80", "gray30"),
+                anchor="w",
+                command=lambda p=product: self._select_search_result(p)
+            )
+            btn.pack(fill="x", pady=1)
+
+    def _select_search_result(self, product):
+        """Select a product from search results"""
+        self._add_to_cart(product)
+        self.search_var.set("")
+        self.search_results_frame.grid_remove()
+        self.search_entry.focus()
+
+    def _add_to_cart(self, product: Product, qty: float = 1):
+        """Add product to cart"""
+        # Check if already in cart
+        for item in self.cart:
+            if item['product_id'] == product.id:
+                item['qty'] += qty
+                self._refresh_cart_display()
+                return
+
+        # Add new item
+        self.cart.append({
+            'product_id': product.id,
+            'product': product,
+            'qty': qty
+        })
+        self._refresh_cart_display()
+
+    def _refresh_cart_display(self):
+        """Refresh the cart display"""
+        # Clear cart display
+        for widget in self.cart_scroll.winfo_children():
+            widget.destroy()
+
+        # Add items
+        for idx, item in enumerate(self.cart, 1):
+            product = item['product']
+            qty = item['qty']
+
+            row_frame = ctk.CTkFrame(self.cart_scroll, fg_color="transparent")
+            row_frame.pack(fill="x", pady=2)
+            row_frame.grid_columnconfigure((0, 1, 2, 3, 4, 5), weight=1)
+
+            # Index
+            ctk.CTkLabel(row_frame, text=str(idx)).grid(row=0, column=0, padx=5)
+
+            # Product name
+            ctk.CTkLabel(
+                row_frame,
+                text=product.name[:20],
+                anchor="w"
+            ).grid(row=0, column=1, padx=5, sticky="w")
+
+            # Rate
+            ctk.CTkLabel(
+                row_frame,
+                text=format_currency(product.price)
+            ).grid(row=0, column=2, padx=5)
+
+            # Quantity (editable)
+            qty_var = ctk.StringVar(value=str(qty))
+            qty_entry = ctk.CTkEntry(row_frame, textvariable=qty_var, width=50, height=25)
+            qty_entry.grid(row=0, column=3, padx=5)
+            qty_entry.bind('<KeyRelease>', lambda e, i=item, v=qty_var: self._update_qty(i, v))
+
+            # GST
+            ctk.CTkLabel(
+                row_frame,
+                text=f"{int(product.gst_rate)}%"
+            ).grid(row=0, column=4, padx=5)
+
+            # Amount
+            tax = self.gst_calc.calculate_item_tax(qty, product.price, product.gst_rate)
+            ctk.CTkLabel(
+                row_frame,
+                text=format_currency(tax.total_amount)
+            ).grid(row=0, column=5, padx=5)
+
+            # Remove button
+            ctk.CTkButton(
+                row_frame,
+                text="X",
+                width=30,
+                height=25,
+                fg_color="red",
+                hover_color="darkred",
+                command=lambda i=item: self._remove_from_cart(i)
+            ).grid(row=0, column=6, padx=5)
+
+        self._update_totals()
+
+    def _update_qty(self, item, qty_var):
+        """Update quantity for an item"""
+        try:
+            qty = float(qty_var.get())
+            if qty > 0:
+                item['qty'] = qty
+                self._update_totals()
+        except ValueError:
+            pass
+
+    def _remove_from_cart(self, item):
+        """Remove item from cart"""
+        self.cart.remove(item)
+        self._refresh_cart_display()
+
+    def _update_totals(self, event=None):
+        """Update totals display"""
+        if not self.cart:
+            self.subtotal_label.configure(text="0.00")
+            self.cgst_label.configure(text="0.00")
+            self.sgst_label.configure(text="0.00")
+            self.grand_total_label.configure(text="0.00")
+            return
+
+        # Build cart items for calculation
+        cart_items = []
+        for item in self.cart:
+            product = item['product']
+            cart_items.append(CartItem(
+                product_id=product.id,
+                product_name=product.name,
+                hsn_code=product.hsn_code or "",
+                qty=item['qty'],
+                unit=product.unit,
+                rate=product.price,
+                gst_rate=product.gst_rate
+            ))
+
+        # Get discount
+        try:
+            discount = float(self.discount_var.get() or 0)
+        except ValueError:
+            discount = 0
+
+        # Calculate
+        result = self.gst_calc.calculate_cart_total(cart_items, discount=discount)
+
+        # Update labels
+        self.subtotal_label.configure(text=format_currency(result['subtotal']))
+        self.cgst_label.configure(text=format_currency(result['cgst_total']))
+        self.sgst_label.configure(text=format_currency(result['sgst_total']))
+        self.grand_total_label.configure(text=format_currency(result['grand_total']))
+
+    def _on_customer_select(self, value):
+        """Handle customer selection"""
+        if value == "Cash Customer":
+            self.selected_customer = None
+        else:
+            # Find customer by name
+            customers = Customer.search(value)
+            if customers:
+                self.selected_customer = customers[0]
+
+    def _clear_cart(self):
+        """Clear the cart"""
+        self.cart = []
+        self.discount_var.set("0")
+        self.selected_customer = None
+        self.customer_var.set("Cash Customer")
+        self._refresh_cart_display()
+
+    def _save_and_print(self):
+        """Save invoice and print"""
+        if not self.cart:
+            messagebox.showwarning("Empty Cart", "Please add products to the cart.")
+            return
+
+        try:
+            discount = float(self.discount_var.get() or 0)
+        except ValueError:
+            discount = 0
+
+        # Create invoice
+        cart_data = [{'product_id': item['product_id'], 'qty': item['qty']} for item in self.cart]
+
+        invoice = self.invoice_service.create_invoice(
+            cart_items=cart_data,
+            customer=self.selected_customer,
+            discount=discount,
+            payment_mode=self.payment_var.get()
+        )
+
+        # Generate and print PDF
+        try:
+            self.pdf_gen.print_invoice(invoice)
+            messagebox.showinfo(
+                "Invoice Created",
+                f"Invoice {invoice.invoice_number} created successfully!"
+            )
+        except Exception as e:
+            messagebox.showwarning(
+                "Print Warning",
+                f"Invoice saved but printing failed: {e}\n\nInvoice No: {invoice.invoice_number}"
+            )
+
+        # Clear cart
+        self._clear_cart()
+
+    def refresh(self):
+        """Refresh customer list"""
+        customers = Customer.get_all()
+        customer_names = ["Cash Customer"] + [c.name for c in customers]
+        self.customer_combo.configure(values=customer_names)

@@ -29,14 +29,15 @@ class BillingFrame(ctk.CTkFrame):
 
     def _setup_keyboard_shortcuts(self):
         """Setup keyboard shortcuts for quick billing"""
-        # Get the top-level window
-        self.bind_all('<F1>', lambda e: self._focus_search())
-        self.bind_all('<F2>', lambda e: self._clear_cart())
-        self.bind_all('<F3>', lambda e: self._save_and_print())
-        self.bind_all('<F4>', lambda e: self._focus_discount())
-        self.bind_all('<F5>', lambda e: self._hold_bill())
-        self.bind_all('<F6>', lambda e: self._recall_bill())
-        self.bind_all('<Escape>', lambda e: self._on_escape())
+        # Get the top-level window and bind to it (bind_all not allowed in CustomTkinter)
+        root = self.winfo_toplevel()
+        root.bind('<F1>', lambda e: self._focus_search())
+        root.bind('<F2>', lambda e: self._clear_cart())
+        root.bind('<F3>', lambda e: self._save_and_print())
+        root.bind('<F4>', lambda e: self._focus_discount())
+        root.bind('<F5>', lambda e: self._hold_bill())
+        root.bind('<F6>', lambda e: self._recall_bill())
+        root.bind('<Escape>', lambda e: self._on_escape())
 
     def _focus_search(self):
         """Focus on search entry (F1)"""

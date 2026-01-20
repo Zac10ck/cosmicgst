@@ -165,6 +165,7 @@ class Customer:
     is_active: bool = True
     credit_balance: float = 0.0
     credit_limit: float = 0.0
+    pin_code: str = ""
 
     @classmethod
     def get_all(cls, active_only: bool = True) -> List['Customer']:
@@ -207,15 +208,15 @@ class Customer:
         if self.id:
             conn.execute("""
                 UPDATE customers SET name=?, phone=?, address=?, gstin=?, state_code=?, is_active=?,
-                credit_balance=?, credit_limit=? WHERE id=?
+                credit_balance=?, credit_limit=?, pin_code=? WHERE id=?
             """, (self.name, self.phone, self.address, self.gstin, self.state_code, self.is_active,
-                  self.credit_balance, self.credit_limit, self.id))
+                  self.credit_balance, self.credit_limit, self.pin_code, self.id))
         else:
             cursor = conn.execute("""
-                INSERT INTO customers (name, phone, address, gstin, state_code, is_active, credit_balance, credit_limit)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO customers (name, phone, address, gstin, state_code, is_active, credit_balance, credit_limit, pin_code)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (self.name, self.phone, self.address, self.gstin, self.state_code, self.is_active,
-                  self.credit_balance, self.credit_limit))
+                  self.credit_balance, self.credit_limit, self.pin_code))
             self.id = cursor.lastrowid
         conn.commit()
         conn.close()
@@ -264,6 +265,12 @@ class Invoice:
     is_cancelled: bool = False
     created_at: Optional[datetime] = None
     items: List[InvoiceItem] = field(default_factory=list)
+    # e-Way Bill fields
+    vehicle_number: str = ""
+    transport_mode: str = "Road"
+    transport_distance: int = 0
+    transporter_id: str = ""
+    eway_bill_number: str = ""
 
     @classmethod
     def get_by_id(cls, invoice_id: int) -> Optional['Invoice']:
@@ -294,14 +301,21 @@ class Invoice:
         return None
 
     @classmethod
-    def get_by_date_range(cls, start_date: date, end_date: date) -> List['Invoice']:
+    def get_by_date_range(cls, start_date: date, end_date: date, include_cancelled: bool = True) -> List['Invoice']:
         """Get invoices in date range"""
         conn = get_connection()
-        rows = conn.execute("""
-            SELECT * FROM invoices
-            WHERE invoice_date BETWEEN ? AND ? AND is_cancelled = 0
-            ORDER BY invoice_date DESC, id DESC
-        """, (start_date.isoformat(), end_date.isoformat())).fetchall()
+        if include_cancelled:
+            rows = conn.execute("""
+                SELECT * FROM invoices
+                WHERE invoice_date BETWEEN ? AND ?
+                ORDER BY invoice_date DESC, id DESC
+            """, (start_date.isoformat(), end_date.isoformat())).fetchall()
+        else:
+            rows = conn.execute("""
+                SELECT * FROM invoices
+                WHERE invoice_date BETWEEN ? AND ? AND is_cancelled = 0
+                ORDER BY invoice_date DESC, id DESC
+            """, (start_date.isoformat(), end_date.isoformat())).fetchall()
         conn.close()
         return [cls.get_by_id(row['id']) for row in rows]
 

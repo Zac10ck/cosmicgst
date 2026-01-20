@@ -42,8 +42,8 @@ class InvoicesFrame(ctk.CTkFrame):
         # Date From
         ctk.CTkLabel(filters_frame, text="From:").grid(row=0, column=0, padx=(15, 5), pady=15)
 
-        # Default: 30 days ago
-        default_from = (date.today() - timedelta(days=30)).strftime("%Y-%m-%d")
+        # Default: 90 days ago (extended for better visibility)
+        default_from = (date.today() - timedelta(days=90)).strftime("%Y-%m-%d")
         self.date_from_var = ctk.StringVar(value=default_from)
         self.date_from_entry = ctk.CTkEntry(
             filters_frame,

@@ -184,6 +184,38 @@ def init_db():
     except sqlite3.OperationalError:
         pass
 
+    # Add e-Way Bill related columns to invoices
+    try:
+        cursor.execute("ALTER TABLE invoices ADD COLUMN vehicle_number TEXT")
+    except sqlite3.OperationalError:
+        pass
+
+    try:
+        cursor.execute("ALTER TABLE invoices ADD COLUMN transport_mode TEXT DEFAULT 'Road'")
+    except sqlite3.OperationalError:
+        pass
+
+    try:
+        cursor.execute("ALTER TABLE invoices ADD COLUMN transport_distance INTEGER DEFAULT 0")
+    except sqlite3.OperationalError:
+        pass
+
+    try:
+        cursor.execute("ALTER TABLE invoices ADD COLUMN transporter_id TEXT")
+    except sqlite3.OperationalError:
+        pass
+
+    try:
+        cursor.execute("ALTER TABLE invoices ADD COLUMN eway_bill_number TEXT")
+    except sqlite3.OperationalError:
+        pass
+
+    # Add PIN code to customers for e-Way Bill
+    try:
+        cursor.execute("ALTER TABLE customers ADD COLUMN pin_code TEXT")
+    except sqlite3.OperationalError:
+        pass
+
     # Create indexes for faster lookups
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_products_barcode ON products(barcode)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_products_name ON products(name)")

@@ -2,10 +2,12 @@
 import customtkinter as ctk
 from tkinter import messagebox, filedialog
 from datetime import date, timedelta
+import json
 # Date entry uses simple CTkEntry (no tkcalendar dependency needed)
 from services.invoice_service import InvoiceService
 from services.stock_service import StockService
 from services.gstr1_export import GSTR1Exporter
+from services.eway_bill_service import EWayBillService, TRANSPORT_MODES, EWAY_BILL_THRESHOLD
 from utils.formatters import format_currency, format_date
 
 
@@ -18,6 +20,7 @@ class ReportsFrame(ctk.CTkFrame):
         self.invoice_service = InvoiceService()
         self.stock_service = StockService()
         self.gstr1_exporter = GSTR1Exporter()
+        self.eway_service = EWayBillService()
 
         self._create_widgets()
 
@@ -41,11 +44,13 @@ class ReportsFrame(ctk.CTkFrame):
         self.tabview.add("GST Report")
         self.tabview.add("Stock Report")
         self.tabview.add("GSTR-1 Export")
+        self.tabview.add("e-Way Bill")
 
         self._create_sales_tab()
         self._create_gst_tab()
         self._create_stock_tab()
         self._create_gstr1_tab()
+        self._create_eway_bill_tab()
 
     def _create_sales_tab(self):
         """Create sales report tab"""
@@ -368,6 +373,284 @@ class ReportsFrame(ctk.CTkFrame):
             self.gstr1_exporter.export_gstr1(from_date, to_date, filename)
             messagebox.showinfo("Success", f"GSTR-1 exported to:\n{filename}")
 
+    def _create_eway_bill_tab(self):
+        """Create e-Way Bill helper tab"""
+        tab = self.tabview.tab("e-Way Bill")
+
+        # Info header
+        info_frame = ctk.CTkFrame(tab, fg_color=("gray90", "gray20"))
+        info_frame.pack(fill="x", pady=(10, 15), padx=10)
+
+        ctk.CTkLabel(
+            info_frame,
+            text="e-Way Bill Helper",
+            font=ctk.CTkFont(size=16, weight="bold")
+        ).pack(pady=(10, 5))
+
+        ctk.CTkLabel(
+            info_frame,
+            text=f"Generate e-Way Bill data for manual entry into GST portal.\ne-Way Bill is required for invoices > ₹{EWAY_BILL_THRESHOLD:,}",
+            font=ctk.CTkFont(size=11),
+            text_color="gray"
+        ).pack(pady=(0, 10))
+
+        # Invoice selection
+        select_frame = ctk.CTkFrame(tab, fg_color="transparent")
+        select_frame.pack(fill="x", pady=10, padx=10)
+
+        ctk.CTkLabel(select_frame, text="Select Invoice:").pack(side="left", padx=(0, 10))
+
+        self.eway_invoice_var = ctk.StringVar()
+        self.eway_invoice_combo = ctk.CTkComboBox(
+            select_frame,
+            variable=self.eway_invoice_var,
+            values=["Select an invoice..."],
+            width=250,
+            command=self._on_eway_invoice_select
+        )
+        self.eway_invoice_combo.pack(side="left")
+
+        ctk.CTkButton(
+            select_frame,
+            text="Refresh List",
+            width=100,
+            command=self._refresh_eway_invoices
+        ).pack(side="left", padx=10)
+
+        # Transport details frame
+        transport_frame = ctk.CTkFrame(tab)
+        transport_frame.pack(fill="x", pady=10, padx=10)
+
+        ctk.CTkLabel(
+            transport_frame,
+            text="Transport Details (for Part B)",
+            font=ctk.CTkFont(size=12, weight="bold")
+        ).grid(row=0, column=0, columnspan=4, pady=(10, 15), sticky="w", padx=15)
+
+        # Transport mode
+        ctk.CTkLabel(transport_frame, text="Mode:").grid(row=1, column=0, padx=15, pady=5, sticky="w")
+        self.eway_mode_var = ctk.StringVar(value="Road")
+        ctk.CTkComboBox(
+            transport_frame,
+            variable=self.eway_mode_var,
+            values=TRANSPORT_MODES,
+            width=120
+        ).grid(row=1, column=1, padx=5, pady=5, sticky="w")
+
+        # Vehicle number
+        ctk.CTkLabel(transport_frame, text="Vehicle No:").grid(row=1, column=2, padx=15, pady=5, sticky="w")
+        self.eway_vehicle_var = ctk.StringVar()
+        ctk.CTkEntry(
+            transport_frame,
+            textvariable=self.eway_vehicle_var,
+            width=120,
+            placeholder_text="KL-01-AB-1234"
+        ).grid(row=1, column=3, padx=5, pady=5, sticky="w")
+
+        # Distance
+        ctk.CTkLabel(transport_frame, text="Distance (km):").grid(row=2, column=0, padx=15, pady=5, sticky="w")
+        self.eway_distance_var = ctk.StringVar(value="0")
+        ctk.CTkEntry(
+            transport_frame,
+            textvariable=self.eway_distance_var,
+            width=120
+        ).grid(row=2, column=1, padx=5, pady=5, sticky="w")
+
+        # Transporter ID
+        ctk.CTkLabel(transport_frame, text="Transporter ID:").grid(row=2, column=2, padx=15, pady=5, sticky="w")
+        self.eway_transporter_var = ctk.StringVar()
+        ctk.CTkEntry(
+            transport_frame,
+            textvariable=self.eway_transporter_var,
+            width=120,
+            placeholder_text="GSTIN (optional)"
+        ).grid(row=2, column=3, padx=5, pady=5, sticky="w")
+
+        # Recipient PIN
+        ctk.CTkLabel(transport_frame, text="Recipient PIN:").grid(row=3, column=0, padx=15, pady=5, sticky="w")
+        self.eway_pin_var = ctk.StringVar()
+        ctk.CTkEntry(
+            transport_frame,
+            textvariable=self.eway_pin_var,
+            width=120,
+            placeholder_text="6-digit PIN"
+        ).grid(row=3, column=1, padx=5, pady=(5, 15), sticky="w")
+
+        # Action buttons
+        action_frame = ctk.CTkFrame(tab, fg_color="transparent")
+        action_frame.pack(fill="x", pady=10, padx=10)
+
+        ctk.CTkButton(
+            action_frame,
+            text="Generate e-Way Bill Data",
+            fg_color="green",
+            hover_color="darkgreen",
+            command=self._generate_eway_bill
+        ).pack(side="left", padx=5)
+
+        ctk.CTkButton(
+            action_frame,
+            text="Export as JSON",
+            command=self._export_eway_json
+        ).pack(side="left", padx=5)
+
+        ctk.CTkButton(
+            action_frame,
+            text="Save EWB Number",
+            fg_color="orange",
+            hover_color="darkorange",
+            command=self._save_eway_number
+        ).pack(side="left", padx=5)
+
+        # Result display
+        self.eway_result = ctk.CTkTextbox(tab, height=200, font=("Courier", 10))
+        self.eway_result.pack(fill="both", expand=True, pady=10, padx=10)
+
+        # Status label
+        self.eway_status_label = ctk.CTkLabel(
+            tab,
+            text="",
+            font=ctk.CTkFont(size=11),
+            text_color="gray"
+        )
+        self.eway_status_label.pack(pady=(0, 10))
+
+        # Load invoices on init
+        self._refresh_eway_invoices()
+
+    def _refresh_eway_invoices(self):
+        """Refresh invoice list for e-Way Bill"""
+        from database.models import Invoice
+
+        # Get recent invoices (last 30 days) that might need e-Way Bill
+        from_date = date.today() - timedelta(days=30)
+        to_date = date.today()
+
+        invoices = Invoice.get_by_date_range(from_date, to_date)
+
+        # Filter high-value invoices
+        invoice_options = ["Select an invoice..."]
+        self.eway_invoices = {}
+
+        for inv in invoices:
+            if inv.grand_total >= EWAY_BILL_THRESHOLD and not inv.is_cancelled:
+                label = f"{inv.invoice_number} - ₹{inv.grand_total:,.2f} - {inv.customer_name or 'Cash'}"
+                if inv.eway_bill_number:
+                    label += f" [EWB: {inv.eway_bill_number}]"
+                invoice_options.append(label)
+                self.eway_invoices[label] = inv
+
+        self.eway_invoice_combo.configure(values=invoice_options)
+
+        # Show count
+        count = len(invoice_options) - 1
+        if count > 0:
+            self.eway_status_label.configure(
+                text=f"Found {count} invoice(s) requiring e-Way Bill (value > ₹{EWAY_BILL_THRESHOLD:,})"
+            )
+        else:
+            self.eway_status_label.configure(
+                text="No high-value invoices found in the last 30 days."
+            )
+
+    def _on_eway_invoice_select(self, value):
+        """Handle invoice selection for e-Way Bill"""
+        if value in self.eway_invoices:
+            inv = self.eway_invoices[value]
+
+            # Check requirements
+            required, reason = self.eway_service.is_eway_bill_required(inv)
+
+            self.eway_result.delete("1.0", "end")
+            self.eway_result.insert("1.0", f"Invoice: {inv.invoice_number}\n")
+            self.eway_result.insert("end", f"Value: ₹{inv.grand_total:,.2f}\n")
+            self.eway_result.insert("end", f"Customer: {inv.customer_name or 'Cash'}\n\n")
+            self.eway_result.insert("end", f"e-Way Bill Required: {'YES' if required else 'NO'}\n")
+            self.eway_result.insert("end", f"Reason: {reason}\n\n")
+
+            if inv.eway_bill_number:
+                self.eway_result.insert("end", f"Existing EWB Number: {inv.eway_bill_number}\n")
+
+            self.eway_result.insert("end", "\nClick 'Generate e-Way Bill Data' to create portal entry data.")
+
+    def _generate_eway_bill(self):
+        """Generate e-Way Bill data for selected invoice"""
+        selected = self.eway_invoice_var.get()
+
+        if selected not in self.eway_invoices:
+            messagebox.showwarning("Select Invoice", "Please select an invoice first.")
+            return
+
+        invoice = self.eway_invoices[selected]
+
+        try:
+            distance = int(self.eway_distance_var.get() or 0)
+        except ValueError:
+            distance = 0
+
+        # Generate e-Way Bill data
+        self.current_eway_data = self.eway_service.generate_eway_bill_data(
+            invoice=invoice,
+            vehicle_number=self.eway_vehicle_var.get().upper(),
+            transport_mode=self.eway_mode_var.get(),
+            transporter_id=self.eway_transporter_var.get(),
+            transport_distance=distance,
+            recipient_pin=self.eway_pin_var.get()
+        )
+
+        # Display formatted data
+        formatted = self.eway_service.format_for_display(self.current_eway_data)
+
+        self.eway_result.delete("1.0", "end")
+        self.eway_result.insert("1.0", formatted)
+
+        self.eway_status_label.configure(
+            text="e-Way Bill data generated. Copy above data to portal or export as JSON."
+        )
+
+    def _export_eway_json(self):
+        """Export e-Way Bill data as JSON"""
+        if not hasattr(self, 'current_eway_data') or not self.current_eway_data:
+            messagebox.showwarning("No Data", "Please generate e-Way Bill data first.")
+            return
+
+        # Ask for save location
+        filename = filedialog.asksaveasfilename(
+            defaultextension=".json",
+            filetypes=[("JSON files", "*.json")],
+            initialfilename=f"eway_bill_{self.current_eway_data.document_number.replace('/', '_')}.json"
+        )
+
+        if filename:
+            json_data = self.eway_service.export_to_json(self.current_eway_data)
+            with open(filename, 'w') as f:
+                json.dump(json_data, f, indent=2)
+            messagebox.showinfo("Success", f"e-Way Bill data exported to:\n{filename}")
+
+    def _save_eway_number(self):
+        """Save e-Way Bill number after manual portal entry"""
+        selected = self.eway_invoice_var.get()
+
+        if selected not in self.eway_invoices:
+            messagebox.showwarning("Select Invoice", "Please select an invoice first.")
+            return
+
+        invoice = self.eway_invoices[selected]
+
+        # Ask for EWB number
+        dialog = ctk.CTkInputDialog(
+            text="Enter the e-Way Bill number from GST portal:",
+            title="Save e-Way Bill Number"
+        )
+        ewb_number = dialog.get_input()
+
+        if ewb_number:
+            if self.eway_service.save_eway_bill_number(invoice.id, ewb_number.strip()):
+                messagebox.showinfo("Saved", f"e-Way Bill number saved:\n{ewb_number}")
+                self._refresh_eway_invoices()
+            else:
+                messagebox.showerror("Error", "Failed to save e-Way Bill number.")
+
     def refresh(self):
         """Refresh reports"""
-        pass
+        self._refresh_eway_invoices()

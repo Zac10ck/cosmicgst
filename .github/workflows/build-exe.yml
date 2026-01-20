@@ -3,11 +3,14 @@ name: Build Windows EXE
 on:
   push:
     branches: [ main, master ]
-  workflow_dispatch:  # Allows manual trigger
+  workflow_dispatch:
 
 jobs:
   build:
     runs-on: windows-latest
+
+    permissions:
+      contents: write
 
     steps:
     - name: Checkout code
@@ -39,30 +42,13 @@ jobs:
 
     - name: Create Release
       uses: softprops/action-gh-release@v1
-      if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
       with:
         tag_name: v1.0.${{ github.run_number }}
         name: GST Billing v1.0.${{ github.run_number }}
         body: |
-          ## GST Billing Software for Windows
+          ## GST Billing Software
 
-          ### Download
-          Download `GST_Billing.exe` below and run it on your Windows PC.
+          Download GST_Billing.exe below and run on any Windows PC.
 
-          ### Features
-          - GST Compliant Invoicing (CGST/SGST)
-          - Barcode Scanner Support
-          - Inventory Management
-          - PDF Invoice Generation
-          - Google Drive Backup
-          - GSTR-1 Export
-
-          ### First Run
-          1. Download GST_Billing.exe
-          2. Double-click to run
-          3. Go to Settings and enter your shop details
-          4. Start billing!
+          No installation needed - just double-click to run!
         files: dist/GST_Billing.exe
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-# Build 1768898691

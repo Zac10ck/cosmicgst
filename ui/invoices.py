@@ -397,6 +397,17 @@ class InvoicesFrame(ctk.CTkFrame):
             command=lambda inv=invoice: self._print_invoice(inv)
         ).pack(side="left", padx=2)
 
+        ctk.CTkButton(
+            actions_frame,
+            text="PDF",
+            width=45,
+            height=26,
+            font=ctk.CTkFont(size=11),
+            fg_color="purple",
+            hover_color="darkviolet",
+            command=lambda inv=invoice: self._save_invoice_pdf(inv)
+        ).pack(side="left", padx=2)
+
         if not invoice.is_cancelled:
             ctk.CTkButton(
                 actions_frame,
@@ -438,6 +449,25 @@ class InvoicesFrame(ctk.CTkFrame):
             messagebox.showinfo("Print", f"Invoice {invoice.invoice_number} sent to printer")
         except Exception as e:
             messagebox.showerror("Print Error", f"Failed to print: {e}")
+
+    def _save_invoice_pdf(self, invoice: Invoice):
+        """Save invoice as PDF file"""
+        from tkinter import filedialog
+        try:
+            full_invoice = Invoice.get_by_id(invoice.id)
+
+            # Ask for save location
+            filename = filedialog.asksaveasfilename(
+                defaultextension=".pdf",
+                filetypes=[("PDF files", "*.pdf")],
+                initialfilename=f"{invoice.invoice_number}.pdf"
+            )
+
+            if filename:
+                self.pdf_gen.generate_invoice_pdf(full_invoice, filename)
+                messagebox.showinfo("Saved", f"Invoice saved to:\n{filename}")
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to save PDF: {e}")
 
     def _cancel_invoice(self, invoice: Invoice):
         """Cancel an invoice"""
@@ -622,6 +652,15 @@ class InvoiceDetailDialog(ctk.CTkToplevel):
 
         ctk.CTkButton(
             btn_frame,
+            text="Save PDF",
+            width=100,
+            fg_color="purple",
+            hover_color="darkviolet",
+            command=self._save_pdf
+        ).pack(side="right", padx=(0, 10))
+
+        ctk.CTkButton(
+            btn_frame,
             text="Print Invoice",
             width=120,
             fg_color="green",
@@ -638,3 +677,22 @@ class InvoiceDetailDialog(ctk.CTkToplevel):
             messagebox.showinfo("Print", "Invoice sent to printer")
         except Exception as e:
             messagebox.showerror("Print Error", f"Failed to print: {e}")
+
+    def _save_pdf(self):
+        """Save invoice as PDF"""
+        from tkinter import filedialog
+        try:
+            from services.pdf_generator import PDFGenerator
+            pdf_gen = PDFGenerator()
+
+            filename = filedialog.asksaveasfilename(
+                defaultextension=".pdf",
+                filetypes=[("PDF files", "*.pdf")],
+                initialfilename=f"{self.invoice.invoice_number}.pdf"
+            )
+
+            if filename:
+                pdf_gen.generate_invoice_pdf(self.invoice, filename)
+                messagebox.showinfo("Saved", f"Invoice saved to:\n{filename}")
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to save PDF: {e}")

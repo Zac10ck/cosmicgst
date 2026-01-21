@@ -488,6 +488,16 @@ class CreditNotesFrame(ctk.CTkFrame):
                 command=lambda c=cn: self._print_credit_note(c)
             ).pack(side="left", padx=2)
 
+            ctk.CTkButton(
+                actions_frame,
+                text="PDF",
+                width=45,
+                height=25,
+                fg_color="purple",
+                hover_color="darkviolet",
+                command=lambda c=cn: self._save_credit_note_pdf(c)
+            ).pack(side="left", padx=2)
+
             if cn.status == "ACTIVE":
                 ctk.CTkButton(
                     actions_frame,
@@ -504,6 +514,22 @@ class CreditNotesFrame(ctk.CTkFrame):
             self.pdf_gen.print_credit_note(credit_note)
         except Exception as e:
             messagebox.showerror("Print Error", f"Failed to print: {e}")
+
+    def _save_credit_note_pdf(self, credit_note):
+        """Save credit note as PDF file"""
+        from tkinter import filedialog
+        try:
+            filename = filedialog.asksaveasfilename(
+                defaultextension=".pdf",
+                filetypes=[("PDF files", "*.pdf")],
+                initialfilename=f"{credit_note.credit_note_number}.pdf"
+            )
+
+            if filename:
+                self.pdf_gen.generate_credit_note_pdf(credit_note, filename)
+                messagebox.showinfo("Saved", f"Credit note saved to:\n{filename}")
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to save PDF: {e}")
 
     def _cancel_credit_note(self, credit_note):
         """Cancel a credit note"""

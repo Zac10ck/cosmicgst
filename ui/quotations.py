@@ -617,6 +617,17 @@ class QuotationsFrame(ctk.CTkFrame):
                 command=lambda qid=q.id: self._print_quotation(qid)
             ).pack(side="left", padx=2)
 
+            ctk.CTkButton(
+                actions_frame,
+                text="PDF",
+                width=45,
+                height=25,
+                font=ctk.CTkFont(size=11),
+                fg_color="purple",
+                hover_color="darkviolet",
+                command=lambda qid=q.id: self._save_quotation_pdf(qid)
+            ).pack(side="left", padx=2)
+
     def _view_quotation(self, quotation_id: int):
         """View quotation details in popup"""
         quotation = Quotation.get_by_id(quotation_id)
@@ -765,6 +776,26 @@ class QuotationsFrame(ctk.CTkFrame):
         quotation = Quotation.get_by_id(quotation_id)
         if quotation:
             self.pdf_gen.print_quotation(quotation)
+
+    def _save_quotation_pdf(self, quotation_id: int):
+        """Save quotation as PDF file"""
+        from tkinter import filedialog
+        quotation = Quotation.get_by_id(quotation_id)
+        if not quotation:
+            return
+
+        try:
+            filename = filedialog.asksaveasfilename(
+                defaultextension=".pdf",
+                filetypes=[("PDF files", "*.pdf")],
+                initialfilename=f"{quotation.quotation_number}.pdf"
+            )
+
+            if filename:
+                self.pdf_gen.generate_quotation_pdf(quotation, filename)
+                messagebox.showinfo("Saved", f"Quotation saved to:\n{filename}")
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to save PDF: {e}")
 
     def _check_expired(self):
         """Check and mark expired quotations"""

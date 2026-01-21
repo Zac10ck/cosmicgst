@@ -6,7 +6,7 @@ echo.
 
 REM Install dependencies
 echo [1/4] Installing dependencies...
-pip install customtkinter pillow reportlab num2words python-dateutil pyinstaller
+pip install customtkinter pillow reportlab num2words python-dateutil pyinstaller matplotlib openpyxl
 
 echo.
 echo [2/4] Creating application icon...
@@ -27,7 +27,11 @@ if exist "assets\icon.ico" (
         --hidden-import reportlab.graphics ^
         --hidden-import num2words ^
         --hidden-import dateutil ^
+        --hidden-import matplotlib ^
+        --hidden-import matplotlib.backends.backend_tkagg ^
+        --hidden-import openpyxl ^
         --collect-all customtkinter ^
+        --collect-all matplotlib ^
         main.py
 ) else (
     echo Building without icon...
@@ -38,7 +42,11 @@ if exist "assets\icon.ico" (
         --hidden-import reportlab.graphics ^
         --hidden-import num2words ^
         --hidden-import dateutil ^
+        --hidden-import matplotlib ^
+        --hidden-import matplotlib.backends.backend_tkagg ^
+        --hidden-import openpyxl ^
         --collect-all customtkinter ^
+        --collect-all matplotlib ^
         main.py
 )
 

@@ -14,7 +14,7 @@ if errorlevel 1 (
 )
 
 echo [1/5] Installing required packages...
-pip install customtkinter pillow reportlab num2words python-dateutil pyinstaller
+pip install customtkinter pillow reportlab num2words python-dateutil pyinstaller matplotlib openpyxl
 
 echo.
 echo [2/5] Creating application icon...
@@ -48,6 +48,10 @@ if errorlevel 1 (
             --hidden-import reportlab ^
             --hidden-import num2words ^
             --hidden-import dateutil ^
+            --hidden-import matplotlib ^
+            --hidden-import matplotlib.backends.backend_tkagg ^
+            --hidden-import openpyxl ^
+            --collect-all matplotlib ^
             main.py
     ) else (
         pyinstaller --onefile --windowed --name "GST_Billing" ^
@@ -57,6 +61,10 @@ if errorlevel 1 (
             --hidden-import reportlab ^
             --hidden-import num2words ^
             --hidden-import dateutil ^
+            --hidden-import matplotlib ^
+            --hidden-import matplotlib.backends.backend_tkagg ^
+            --hidden-import openpyxl ^
+            --collect-all matplotlib ^
             main.py
     )
 )

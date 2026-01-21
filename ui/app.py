@@ -1,6 +1,6 @@
 """Main application window"""
 import customtkinter as ctk
-from config import APP_NAME, WINDOW_WIDTH, WINDOW_HEIGHT, THEME
+from config import APP_NAME, APP_VERSION, WINDOW_WIDTH, WINDOW_HEIGHT, THEME
 
 
 class App(ctk.CTk):
@@ -10,7 +10,7 @@ class App(ctk.CTk):
         super().__init__()
 
         # Window setup
-        self.title(APP_NAME)
+        self.title(f"{APP_NAME} v{APP_VERSION}")
         self.geometry(f"{WINDOW_WIDTH}x{WINDOW_HEIGHT}")
         self.minsize(1000, 600)
 

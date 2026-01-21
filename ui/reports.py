@@ -689,6 +689,10 @@ class ReportsFrame(ctk.CTkFrame):
 
     def _export_sales_excel(self):
         """Export sales report to Excel"""
+        if not ExcelExporter.is_available():
+            messagebox.showerror("Not Available", "Excel export requires openpyxl.\nInstall with: pip install openpyxl")
+            return
+
         if not self.current_sales_report:
             messagebox.showwarning("No Data", "Please generate a sales report first.")
             return
@@ -719,6 +723,10 @@ class ReportsFrame(ctk.CTkFrame):
 
     def _export_gst_excel(self):
         """Export GST report to Excel"""
+        if not ExcelExporter.is_available():
+            messagebox.showerror("Not Available", "Excel export requires openpyxl.\nInstall with: pip install openpyxl")
+            return
+
         if not self.current_gst_report:
             messagebox.showwarning("No Data", "Please generate a GST report first.")
             return
@@ -750,6 +758,10 @@ class ReportsFrame(ctk.CTkFrame):
 
     def _export_stock_excel(self):
         """Export stock report to Excel"""
+        if not ExcelExporter.is_available():
+            messagebox.showerror("Not Available", "Excel export requires openpyxl.\nInstall with: pip install openpyxl")
+            return
+
         if not self.current_stock_report:
             # Generate if not available
             self.current_stock_report = self.stock_service.get_stock_report()

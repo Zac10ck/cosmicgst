@@ -4,7 +4,7 @@ from pathlib import Path
 
 # Application Info
 APP_NAME = "GST Billing"
-APP_VERSION = "1.0.0"
+APP_VERSION = "2.0.0"
 
 # Paths
 BASE_DIR = Path(__file__).parent

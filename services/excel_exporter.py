@@ -2,15 +2,41 @@
 from datetime import date
 from typing import List, Dict, Any
 from pathlib import Path
-from openpyxl import Workbook
-from openpyxl.styles import Font, Alignment, Border, Side, PatternFill
-from openpyxl.utils import get_column_letter
+
+# Optional openpyxl import
+OPENPYXL_AVAILABLE = False
+try:
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, Alignment, Border, Side, PatternFill
+    from openpyxl.utils import get_column_letter
+    OPENPYXL_AVAILABLE = True
+except ImportError:
+    Workbook = None
+    Font = Alignment = Border = Side = PatternFill = None
+    get_column_letter = None
 
 
 class ExcelExporter:
     """Service for exporting reports to Excel files"""
 
+    @staticmethod
+    def is_available() -> bool:
+        """Check if Excel export is available"""
+        return OPENPYXL_AVAILABLE
+
     def __init__(self):
+        if not OPENPYXL_AVAILABLE:
+            # Set None values for styles when openpyxl is not available
+            self.header_font = None
+            self.header_fill = None
+            self.header_alignment = None
+            self.title_font = None
+            self.subtitle_font = None
+            self.thin_border = None
+            self.currency_format = '#,##0.00'
+            self.date_format = 'DD-MM-YYYY'
+            return
+
         # Define styles
         self.header_font = Font(bold=True, color="FFFFFF", size=11)
         self.header_fill = PatternFill("solid", fgColor="1A5276")

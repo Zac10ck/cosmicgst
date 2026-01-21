@@ -6,12 +6,17 @@ from services.invoice_service import InvoiceService
 from services.stock_service import StockService
 from utils.formatters import format_currency
 
-# Matplotlib imports for charts
-import matplotlib
-matplotlib.use('TkAgg')
-import matplotlib.pyplot as plt
-from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
-from matplotlib.figure import Figure
+# Matplotlib imports for charts (optional)
+MATPLOTLIB_AVAILABLE = False
+try:
+    import matplotlib
+    matplotlib.use('TkAgg')
+    import matplotlib.pyplot as plt
+    from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+    from matplotlib.figure import Figure
+    MATPLOTLIB_AVAILABLE = True
+except ImportError:
+    pass  # Charts will be disabled
 
 
 class DashboardFrame(ctk.CTkFrame):
@@ -268,6 +273,15 @@ class DashboardFrame(ctk.CTkFrame):
         for widget in self.sales_chart_container.winfo_children():
             widget.destroy()
 
+        # Check if matplotlib is available
+        if not MATPLOTLIB_AVAILABLE:
+            ctk.CTkLabel(
+                self.sales_chart_container,
+                text="Install matplotlib for charts",
+                text_color="gray"
+            ).pack(expand=True)
+            return
+
         # Get data
         sales_data = self.invoice_service.get_sales_trend(self.chart_period)
 
@@ -320,6 +334,15 @@ class DashboardFrame(ctk.CTkFrame):
         # Clear previous chart
         for widget in self.payment_chart_container.winfo_children():
             widget.destroy()
+
+        # Check if matplotlib is available
+        if not MATPLOTLIB_AVAILABLE:
+            ctk.CTkLabel(
+                self.payment_chart_container,
+                text="Install matplotlib for charts",
+                text_color="gray"
+            ).pack(expand=True)
+            return
 
         # Get data
         end_date = date.today()

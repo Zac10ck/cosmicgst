@@ -23,6 +23,7 @@ class BillingFrame(ctk.CTkFrame):
         # Cart items: list of dicts with product_id, product, qty
         self.cart = []
         self.selected_customer = None
+        self.last_invoice = None  # Store last created invoice for PDF operations
 
         self._create_widgets()
         self._setup_keyboard_shortcuts()
@@ -293,9 +294,32 @@ class BillingFrame(ctk.CTkFrame):
             command=self._save_and_print
         ).grid(row=0, column=1, sticky="ew", padx=(5, 0))
 
+        # Save PDF button row
+        pdf_frame = ctk.CTkFrame(right_frame, fg_color="transparent")
+        pdf_frame.grid(row=4, column=0, sticky="ew", padx=15, pady=(0, 5))
+        pdf_frame.grid_columnconfigure((0, 1), weight=1)
+
+        ctk.CTkButton(
+            pdf_frame,
+            text="Save PDF",
+            height=35,
+            fg_color="purple",
+            hover_color="darkviolet",
+            command=self._save_as_pdf
+        ).grid(row=0, column=0, sticky="ew", padx=(0, 5))
+
+        ctk.CTkButton(
+            pdf_frame,
+            text="View PDF",
+            height=35,
+            fg_color="#3498db",
+            hover_color="#2980b9",
+            command=self._view_pdf
+        ).grid(row=0, column=1, sticky="ew", padx=(5, 0))
+
         # Hold/Recall buttons
         hold_frame = ctk.CTkFrame(right_frame, fg_color="transparent")
-        hold_frame.grid(row=4, column=0, sticky="ew", padx=15, pady=(0, 10))
+        hold_frame.grid(row=5, column=0, sticky="ew", padx=15, pady=(0, 10))
         hold_frame.grid_columnconfigure((0, 1), weight=1)
 
         ctk.CTkButton(
@@ -323,7 +347,7 @@ class BillingFrame(ctk.CTkFrame):
             font=ctk.CTkFont(size=10),
             text_color="gray"
         )
-        shortcuts_label.grid(row=5, column=0, sticky="ew", padx=15, pady=(5, 10))
+        shortcuts_label.grid(row=6, column=0, sticky="ew", padx=15, pady=(5, 10))
 
     def _create_total_row(self, parent, label: str, row: int):
         """Create a totals row"""
@@ -598,6 +622,9 @@ class BillingFrame(ctk.CTkFrame):
                 amount=invoice.grand_total
             )
 
+        # Store invoice for later PDF operations
+        self.last_invoice = invoice
+
         # Generate and print PDF
         try:
             self.pdf_gen.print_invoice(invoice)
@@ -614,6 +641,119 @@ class BillingFrame(ctk.CTkFrame):
         # Clear cart and reset payment UI
         self._clear_cart()
         self._set_payment_mode("CASH")
+
+    def _save_as_pdf(self):
+        """Save current cart as invoice and save PDF to file"""
+        if not self.cart:
+            # If no cart but last invoice exists, save that
+            if self.last_invoice:
+                self._save_last_invoice_pdf()
+                return
+            messagebox.showwarning("Empty Cart", "Please add products to the cart or create an invoice first.")
+            return
+
+        # Create invoice first
+        try:
+            discount = float(self.discount_var.get() or 0)
+        except ValueError:
+            discount = 0
+
+        cart_data = [{'product_id': item['product_id'], 'qty': item['qty']} for item in self.cart]
+        payments_list = self._get_payments_list()
+        primary_payment_mode = self.payment_var.get()
+
+        if payments_list and len(payments_list) > 0:
+            primary_payment_mode = payments_list[0]['mode']
+
+        invoice = self.invoice_service.create_invoice(
+            cart_items=cart_data,
+            customer=self.selected_customer,
+            discount=discount,
+            payment_mode=primary_payment_mode
+        )
+
+        # Record payments
+        if payments_list:
+            from services.payment_service import PaymentService
+            payment_service = PaymentService()
+            payment_service.record_split_payment(invoice.id, payments_list)
+        else:
+            from services.payment_service import PaymentService
+            payment_service = PaymentService()
+            payment_service.record_payment(
+                invoice_id=invoice.id,
+                payment_mode=primary_payment_mode,
+                amount=invoice.grand_total
+            )
+
+        self.last_invoice = invoice
+
+        # Save PDF
+        from tkinter import filedialog
+        filename = filedialog.asksaveasfilename(
+            defaultextension=".pdf",
+            filetypes=[("PDF files", "*.pdf")],
+            initialfilename=f"{invoice.invoice_number}.pdf"
+        )
+
+        if filename:
+            try:
+                self.pdf_gen.generate_invoice_pdf(invoice, filename)
+                messagebox.showinfo("Success", f"Invoice {invoice.invoice_number} saved to:\n{filename}")
+                self._clear_cart()
+                self._set_payment_mode("CASH")
+            except Exception as e:
+                messagebox.showerror("Error", f"Failed to save PDF: {e}")
+
+    def _save_last_invoice_pdf(self):
+        """Save the last created invoice as PDF"""
+        if not self.last_invoice:
+            messagebox.showwarning("No Invoice", "No invoice available. Create an invoice first.")
+            return
+
+        from tkinter import filedialog
+        filename = filedialog.asksaveasfilename(
+            defaultextension=".pdf",
+            filetypes=[("PDF files", "*.pdf")],
+            initialfilename=f"{self.last_invoice.invoice_number}.pdf"
+        )
+
+        if filename:
+            try:
+                self.pdf_gen.generate_invoice_pdf(self.last_invoice, filename)
+                messagebox.showinfo("Success", f"Invoice saved to:\n{filename}")
+            except Exception as e:
+                messagebox.showerror("Error", f"Failed to save PDF: {e}")
+
+    def _view_pdf(self):
+        """View the last created invoice as PDF"""
+        if not self.last_invoice:
+            messagebox.showwarning("No Invoice", "No invoice available. Create an invoice first using 'Save & Print'.")
+            return
+
+        import tempfile
+        import os
+        import platform
+
+        try:
+            # Generate PDF to temp file
+            with tempfile.NamedTemporaryFile(suffix='.pdf', delete=False) as f:
+                pdf_path = f.name
+                self.pdf_gen.generate_invoice_pdf(self.last_invoice, pdf_path)
+
+            # Open PDF
+            system = platform.system()
+            if system == 'Windows':
+                os.startfile(pdf_path)
+            elif system == 'Darwin':  # macOS
+                import subprocess
+                subprocess.run(['open', pdf_path])
+            else:  # Linux
+                import subprocess
+                subprocess.run(['xdg-open', pdf_path])
+
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to open PDF: {e}")
 
     def _hold_bill(self):
         """Hold current bill for later recall (F5)"""

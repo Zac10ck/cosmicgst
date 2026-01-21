@@ -729,29 +729,41 @@ class PDFGenerator:
         import tempfile
         import subprocess
         import platform
+        import os
 
         try:
             # Generate PDF to temp file
             with tempfile.NamedTemporaryFile(suffix='.pdf', delete=False) as f:
                 pdf_path = f.name
-                self.generate_invoice_pdf(invoice, pdf_path)
+
+            self.generate_invoice_pdf(invoice, pdf_path)
 
             # Print based on OS
             system = platform.system()
 
             if system == 'Windows':
-                import os
-                os.startfile(pdf_path, 'print')
+                # Try to print, if fails open the PDF instead
+                try:
+                    os.startfile(pdf_path, 'print')
+                except Exception:
+                    # Fallback: just open the PDF
+                    os.startfile(pdf_path)
             elif system == 'Darwin':  # macOS
-                subprocess.run(['lpr', pdf_path])
+                subprocess.run(['lpr', pdf_path], check=False)
             else:  # Linux
-                subprocess.run(['lpr', pdf_path])
+                subprocess.run(['lpr', pdf_path], check=False)
 
             return True
 
         except Exception as e:
             print(f"Print error: {e}")
-            return False
+            # Try to at least open the PDF
+            try:
+                if platform.system() == 'Windows':
+                    os.startfile(pdf_path)
+            except Exception:
+                pass
+            raise e
 
     def generate_credit_note_pdf(self, credit_note: CreditNote, output_path: str = None) -> bytes:
         """

@@ -52,12 +52,13 @@ class App(ctk.CTk):
         nav_items = [
             ("Dashboard", "dashboard", 1),
             ("New Bill", "billing", 2),
-            ("Invoices", "invoices", 3),
-            ("Credit Notes", "credit_notes", 4),
-            ("Products", "products", 5),
-            ("Customers", "customers", 6),
-            ("Reports", "reports", 7),
-            ("Settings", "settings", 8),
+            ("Quotations", "quotations", 3),
+            ("Invoices", "invoices", 4),
+            ("Credit Notes", "credit_notes", 5),
+            ("Products", "products", 6),
+            ("Customers", "customers", 7),
+            ("Reports", "reports", 8),
+            ("Settings", "settings", 9),
         ]
 
         self.nav_buttons = {}
@@ -100,6 +101,7 @@ class App(ctk.CTk):
         # Import frames here to avoid circular imports
         from .dashboard import DashboardFrame
         from .billing import BillingFrame
+        from .quotations import QuotationsFrame
         from .invoices import InvoicesFrame
         from .credit_notes import CreditNotesFrame
         from .products import ProductsFrame
@@ -111,6 +113,7 @@ class App(ctk.CTk):
         self.frames = {
             "dashboard": DashboardFrame(self.content_frame, self),
             "billing": BillingFrame(self.content_frame, self),
+            "quotations": QuotationsFrame(self.content_frame, self),
             "invoices": InvoicesFrame(self.content_frame, self),
             "credit_notes": CreditNotesFrame(self.content_frame, self),
             "products": ProductsFrame(self.content_frame, self),

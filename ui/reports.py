@@ -8,6 +8,8 @@ from services.invoice_service import InvoiceService
 from services.stock_service import StockService
 from services.gstr1_export import GSTR1Exporter
 from services.eway_bill_service import EWayBillService, TRANSPORT_MODES, EWAY_BILL_THRESHOLD
+from services.excel_exporter import ExcelExporter
+from database.models import Invoice, Company
 from utils.formatters import format_currency, format_date
 
 
@@ -21,6 +23,12 @@ class ReportsFrame(ctk.CTkFrame):
         self.stock_service = StockService()
         self.gstr1_exporter = GSTR1Exporter()
         self.eway_service = EWayBillService()
+        self.excel_exporter = ExcelExporter()
+
+        # Store current report data for export
+        self.current_sales_report = None
+        self.current_gst_report = None
+        self.current_stock_report = None
 
         self._create_widgets()
 
@@ -84,6 +92,14 @@ class ReportsFrame(ctk.CTkFrame):
             command=self._generate_sales_report
         ).pack(side="left", padx=10)
 
+        ctk.CTkButton(
+            date_frame,
+            text="Export to Excel",
+            fg_color="green",
+            hover_color="darkgreen",
+            command=self._export_sales_excel
+        ).pack(side="left", padx=5)
+
         # Results
         self.sales_result = ctk.CTkFrame(tab)
         self.sales_result.pack(fill="both", expand=True, pady=10)
@@ -114,6 +130,14 @@ class ReportsFrame(ctk.CTkFrame):
             command=self._generate_gst_report
         ).pack(side="left", padx=15)
 
+        ctk.CTkButton(
+            date_frame,
+            text="Export to Excel",
+            fg_color="green",
+            hover_color="darkgreen",
+            command=self._export_gst_excel
+        ).pack(side="left", padx=5)
+
         # Results
         self.gst_result = ctk.CTkFrame(tab)
         self.gst_result.pack(fill="both", expand=True, pady=10)
@@ -139,6 +163,14 @@ class ReportsFrame(ctk.CTkFrame):
             fg_color="orange",
             command=self._show_low_stock
         ).pack(side="left", padx=10)
+
+        ctk.CTkButton(
+            action_frame,
+            text="Export to Excel",
+            fg_color="green",
+            hover_color="darkgreen",
+            command=self._export_stock_excel
+        ).pack(side="left", padx=5)
 
         # Results
         self.stock_result = ctk.CTkScrollableFrame(tab)
@@ -196,6 +228,8 @@ class ReportsFrame(ctk.CTkFrame):
             return
 
         report = self.invoice_service.get_daily_sales(sales_date)
+        self.current_sales_report = report
+        self.current_sales_invoices = Invoice.get_by_date_range(sales_date, sales_date)
 
         # Clear and display
         for widget in self.sales_result.winfo_children():
@@ -247,6 +281,7 @@ class ReportsFrame(ctk.CTkFrame):
             return
 
         report = self.invoice_service.get_gst_summary(from_date, to_date)
+        self.current_gst_report = report
 
         # Clear and display
         for widget in self.gst_result.winfo_children():
@@ -275,7 +310,8 @@ class ReportsFrame(ctk.CTkFrame):
 
     def _generate_stock_report(self):
         """Generate stock report"""
-        self._show_stock_list(self.stock_service.get_stock_report())
+        self.current_stock_report = self.stock_service.get_stock_report()
+        self._show_stock_list(self.current_stock_report)
 
     def _show_low_stock(self):
         """Show only low stock items"""
@@ -650,6 +686,96 @@ class ReportsFrame(ctk.CTkFrame):
                 self._refresh_eway_invoices()
             else:
                 messagebox.showerror("Error", "Failed to save e-Way Bill number.")
+
+    def _export_sales_excel(self):
+        """Export sales report to Excel"""
+        if not self.current_sales_report:
+            messagebox.showwarning("No Data", "Please generate a sales report first.")
+            return
+
+        # Get company name
+        company = Company.get()
+        company_name = company.name if company else "GST Billing"
+
+        # Ask for save location
+        filename = filedialog.asksaveasfilename(
+            defaultextension=".xlsx",
+            filetypes=[("Excel files", "*.xlsx")],
+            initialfilename=f"Sales_Report_{self.current_sales_report.get('date', date.today())}.xlsx"
+        )
+
+        if filename:
+            result = self.excel_exporter.export_sales_report(
+                report_data=self.current_sales_report,
+                invoices=self.current_sales_invoices,
+                output_path=filename,
+                company_name=company_name
+            )
+
+            if result['success']:
+                messagebox.showinfo("Success", f"Sales report exported to:\n{filename}")
+            else:
+                messagebox.showerror("Error", f"Export failed:\n{result.get('error', 'Unknown error')}")
+
+    def _export_gst_excel(self):
+        """Export GST report to Excel"""
+        if not self.current_gst_report:
+            messagebox.showwarning("No Data", "Please generate a GST report first.")
+            return
+
+        # Get company name
+        company = Company.get()
+        company_name = company.name if company else "GST Billing"
+
+        # Ask for save location
+        start_date = self.current_gst_report.get('start_date', date.today())
+        end_date = self.current_gst_report.get('end_date', date.today())
+        filename = filedialog.asksaveasfilename(
+            defaultextension=".xlsx",
+            filetypes=[("Excel files", "*.xlsx")],
+            initialfilename=f"GST_Report_{start_date}_to_{end_date}.xlsx"
+        )
+
+        if filename:
+            result = self.excel_exporter.export_gst_report(
+                gst_summary=self.current_gst_report,
+                output_path=filename,
+                company_name=company_name
+            )
+
+            if result['success']:
+                messagebox.showinfo("Success", f"GST report exported to:\n{filename}")
+            else:
+                messagebox.showerror("Error", f"Export failed:\n{result.get('error', 'Unknown error')}")
+
+    def _export_stock_excel(self):
+        """Export stock report to Excel"""
+        if not self.current_stock_report:
+            # Generate if not available
+            self.current_stock_report = self.stock_service.get_stock_report()
+
+        # Get company name
+        company = Company.get()
+        company_name = company.name if company else "GST Billing"
+
+        # Ask for save location
+        filename = filedialog.asksaveasfilename(
+            defaultextension=".xlsx",
+            filetypes=[("Excel files", "*.xlsx")],
+            initialfilename=f"Stock_Report_{date.today()}.xlsx"
+        )
+
+        if filename:
+            result = self.excel_exporter.export_stock_report(
+                stock_items=self.current_stock_report,
+                output_path=filename,
+                company_name=company_name
+            )
+
+            if result['success']:
+                messagebox.showinfo("Success", f"Stock report exported to:\n{filename}")
+            else:
+                messagebox.showerror("Error", f"Export failed:\n{result.get('error', 'Unknown error')}")
 
     def refresh(self):
         """Refresh reports"""

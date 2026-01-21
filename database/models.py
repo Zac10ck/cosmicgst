@@ -1,7 +1,7 @@
 """Data models and CRUD operations"""
 from dataclasses import dataclass, field
 from typing import Optional, List
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from .db import get_connection
 
 
@@ -820,5 +820,231 @@ class CreditNote:
         self.status = "CANCELLED"
         conn = get_connection()
         conn.execute("UPDATE credit_notes SET status = 'CANCELLED' WHERE id = ?", (self.id,))
+        conn.commit()
+        conn.close()
+
+
+@dataclass
+class QuotationItem:
+    """Quotation line item"""
+    id: Optional[int] = None
+    quotation_id: Optional[int] = None
+    product_id: Optional[int] = None
+    product_name: str = ""
+    hsn_code: str = ""
+    qty: float = 0.0
+    unit: str = "NOS"
+    rate: float = 0.0
+    gst_rate: float = 0.0
+    taxable_value: float = 0.0
+    cgst: float = 0.0
+    sgst: float = 0.0
+    igst: float = 0.0
+    total: float = 0.0
+
+
+@dataclass
+class Quotation:
+    """Quotation/Estimate model"""
+    id: Optional[int] = None
+    quotation_number: str = ""
+    quotation_date: date = field(default_factory=date.today)
+    validity_date: date = field(default_factory=lambda: date.today() + timedelta(days=30))
+    customer_id: Optional[int] = None
+    customer_name: str = ""
+    subtotal: float = 0.0
+    cgst_total: float = 0.0
+    sgst_total: float = 0.0
+    igst_total: float = 0.0
+    discount: float = 0.0
+    grand_total: float = 0.0
+    status: str = "DRAFT"  # DRAFT, SENT, ACCEPTED, REJECTED, EXPIRED, CONVERTED
+    notes: str = ""
+    terms_conditions: str = ""
+    converted_invoice_id: Optional[int] = None
+    created_at: Optional[datetime] = None
+    items: List[QuotationItem] = field(default_factory=list)
+
+    # Class constants
+    STATUSES = ["DRAFT", "SENT", "ACCEPTED", "REJECTED", "EXPIRED", "CONVERTED"]
+    DEFAULT_VALIDITY_DAYS = 30
+
+    @classmethod
+    def get_by_id(cls, quotation_id: int) -> Optional['Quotation']:
+        """Get quotation by ID with items"""
+        conn = get_connection()
+        row = conn.execute("SELECT * FROM quotations WHERE id = ?", (quotation_id,)).fetchone()
+        if not row:
+            conn.close()
+            return None
+
+        quotation = cls(**{k: v for k, v in dict(row).items() if k != 'items'})
+
+        # Convert date strings to date objects
+        if isinstance(quotation.quotation_date, str):
+            quotation.quotation_date = date.fromisoformat(quotation.quotation_date)
+        if isinstance(quotation.validity_date, str):
+            quotation.validity_date = date.fromisoformat(quotation.validity_date)
+
+        # Get items
+        items = conn.execute("SELECT * FROM quotation_items WHERE quotation_id = ?", (quotation_id,)).fetchall()
+        quotation.items = [QuotationItem(**dict(item)) for item in items]
+
+        conn.close()
+        return quotation
+
+    @classmethod
+    def get_by_number(cls, quotation_number: str) -> Optional['Quotation']:
+        """Get quotation by number"""
+        conn = get_connection()
+        row = conn.execute("SELECT * FROM quotations WHERE quotation_number = ?", (quotation_number,)).fetchone()
+        conn.close()
+        if row:
+            return cls.get_by_id(row['id'])
+        return None
+
+    @classmethod
+    def get_by_date_range(cls, start_date: date, end_date: date, status: str = None) -> List['Quotation']:
+        """Get quotations in date range, optionally filtered by status"""
+        conn = get_connection()
+        if status:
+            rows = conn.execute("""
+                SELECT * FROM quotations
+                WHERE quotation_date BETWEEN ? AND ? AND status = ?
+                ORDER BY quotation_date DESC, id DESC
+            """, (start_date.isoformat(), end_date.isoformat(), status)).fetchall()
+        else:
+            rows = conn.execute("""
+                SELECT * FROM quotations
+                WHERE quotation_date BETWEEN ? AND ?
+                ORDER BY quotation_date DESC, id DESC
+            """, (start_date.isoformat(), end_date.isoformat())).fetchall()
+        conn.close()
+        return [cls.get_by_id(row['id']) for row in rows]
+
+    @classmethod
+    def get_by_customer(cls, customer_id: int) -> List['Quotation']:
+        """Get quotations for a customer"""
+        conn = get_connection()
+        rows = conn.execute("""
+            SELECT * FROM quotations
+            WHERE customer_id = ?
+            ORDER BY quotation_date DESC
+        """, (customer_id,)).fetchall()
+        conn.close()
+        return [cls.get_by_id(row['id']) for row in rows]
+
+    @classmethod
+    def get_expiring_soon(cls, days: int = 7) -> List['Quotation']:
+        """Get quotations expiring within N days"""
+        today = date.today()
+        expiry_date = today + timedelta(days=days)
+        conn = get_connection()
+        rows = conn.execute("""
+            SELECT * FROM quotations
+            WHERE validity_date BETWEEN ? AND ? AND status IN ('DRAFT', 'SENT')
+            ORDER BY validity_date
+        """, (today.isoformat(), expiry_date.isoformat())).fetchall()
+        conn.close()
+        return [cls.get_by_id(row['id']) for row in rows]
+
+    @classmethod
+    def get_next_quotation_number(cls) -> str:
+        """Generate next quotation number (QTN/FY/0001)"""
+        from config import FINANCIAL_YEAR_START_MONTH
+
+        today = date.today()
+        if today.month >= FINANCIAL_YEAR_START_MONTH:
+            fy_start = today.year
+            fy_end = today.year + 1
+        else:
+            fy_start = today.year - 1
+            fy_end = today.year
+
+        fy_str = f"{fy_start}-{str(fy_end)[-2:]}"
+        prefix = f"QTN/{fy_str}/"
+
+        conn = get_connection()
+        row = conn.execute("""
+            SELECT quotation_number FROM quotations
+            WHERE quotation_number LIKE ?
+            ORDER BY id DESC LIMIT 1
+        """, (f"{prefix}%",)).fetchone()
+        conn.close()
+
+        if row:
+            try:
+                last_num = int(row['quotation_number'].split('/')[-1])
+                next_num = last_num + 1
+            except ValueError:
+                next_num = 1
+        else:
+            next_num = 1
+
+        return f"{prefix}{next_num:04d}"
+
+    def save(self):
+        """Save quotation and items"""
+        conn = get_connection()
+
+        if self.id:
+            conn.execute("""
+                UPDATE quotations SET quotation_number=?, quotation_date=?, validity_date=?,
+                customer_id=?, customer_name=?, subtotal=?, cgst_total=?, sgst_total=?,
+                igst_total=?, discount=?, grand_total=?, status=?, notes=?,
+                terms_conditions=?, converted_invoice_id=?
+                WHERE id=?
+            """, (self.quotation_number, self.quotation_date.isoformat(),
+                  self.validity_date.isoformat(), self.customer_id, self.customer_name,
+                  self.subtotal, self.cgst_total, self.sgst_total, self.igst_total,
+                  self.discount, self.grand_total, self.status, self.notes,
+                  self.terms_conditions, self.converted_invoice_id, self.id))
+        else:
+            cursor = conn.execute("""
+                INSERT INTO quotations (quotation_number, quotation_date, validity_date,
+                customer_id, customer_name, subtotal, cgst_total, sgst_total, igst_total,
+                discount, grand_total, status, notes, terms_conditions, converted_invoice_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (self.quotation_number, self.quotation_date.isoformat(),
+                  self.validity_date.isoformat(), self.customer_id, self.customer_name,
+                  self.subtotal, self.cgst_total, self.sgst_total, self.igst_total,
+                  self.discount, self.grand_total, self.status, self.notes,
+                  self.terms_conditions, self.converted_invoice_id))
+            self.id = cursor.lastrowid
+
+        # Delete existing items and re-insert
+        conn.execute("DELETE FROM quotation_items WHERE quotation_id = ?", (self.id,))
+
+        for item in self.items:
+            item.quotation_id = self.id
+            conn.execute("""
+                INSERT INTO quotation_items (quotation_id, product_id, product_name, hsn_code,
+                qty, unit, rate, gst_rate, taxable_value, cgst, sgst, igst, total)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (item.quotation_id, item.product_id, item.product_name, item.hsn_code,
+                  item.qty, item.unit, item.rate, item.gst_rate, item.taxable_value,
+                  item.cgst, item.sgst, item.igst, item.total))
+
+        conn.commit()
+        conn.close()
+
+    def update_status(self, new_status: str):
+        """Update quotation status"""
+        if new_status in self.STATUSES:
+            self.status = new_status
+            conn = get_connection()
+            conn.execute("UPDATE quotations SET status = ? WHERE id = ?", (new_status, self.id))
+            conn.commit()
+            conn.close()
+
+    def is_expired(self) -> bool:
+        """Check if quotation has expired"""
+        return date.today() > self.validity_date and self.status in ('DRAFT', 'SENT')
+
+    def delete(self):
+        """Delete quotation and items"""
+        conn = get_connection()
+        conn.execute("DELETE FROM quotation_items WHERE quotation_id = ?", (self.id,))
+        conn.execute("DELETE FROM quotations WHERE id = ?", (self.id,))
         conn.commit()
         conn.close()

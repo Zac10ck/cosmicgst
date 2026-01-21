@@ -13,7 +13,7 @@ from reportlab.lib.enums import TA_CENTER, TA_RIGHT, TA_LEFT
 from reportlab.graphics.shapes import Drawing, Rect, Line
 from reportlab.graphics import renderPDF
 
-from database.models import Invoice, Company, CreditNote
+from database.models import Invoice, Company, CreditNote, Quotation
 from utils.formatters import format_currency, number_to_words_indian, format_date
 
 
@@ -996,6 +996,434 @@ class PDFGenerator:
             with tempfile.NamedTemporaryFile(suffix='.pdf', delete=False) as f:
                 pdf_path = f.name
                 self.generate_credit_note_pdf(credit_note, pdf_path)
+
+            system = platform.system()
+            if system == 'Windows':
+                import os
+                os.startfile(pdf_path, 'print')
+            elif system == 'Darwin':
+                subprocess.run(['lpr', pdf_path])
+            else:
+                subprocess.run(['lpr', pdf_path])
+
+            return True
+        except Exception as e:
+            print(f"Print error: {e}")
+            return False
+
+    # === QUOTATION PDF GENERATION ===
+
+    def generate_quotation_pdf(self, quotation: Quotation, output_path: str = None) -> bytes:
+        """
+        Generate professional PDF for a quotation with orange color scheme
+
+        Args:
+            quotation: Quotation object with items
+            output_path: Optional file path. If None, returns bytes.
+
+        Returns:
+            PDF as bytes if no output_path, else None
+        """
+        # Get company details
+        company = Company.get() or Company(
+            name="Your Company Name",
+            address="Company Address",
+            gstin=""
+        )
+
+        # Create PDF
+        buffer = BytesIO()
+        doc = SimpleDocTemplate(
+            buffer,
+            pagesize=A4,
+            leftMargin=self.margin,
+            rightMargin=self.margin,
+            topMargin=self.margin,
+            bottomMargin=self.margin
+        )
+
+        elements = []
+        content_width = self.page_width - 2 * self.margin
+
+        # Quotation-specific colors (orange theme)
+        quotation_colors = {
+            'primary': colors.HexColor('#e67e22'),      # Orange
+            'secondary': colors.HexColor('#d35400'),    # Dark orange
+            'header_bg': colors.HexColor('#e67e22'),    # Header background
+        }
+
+        # Build document sections
+        elements.extend(self._build_quotation_header(company, content_width))
+        elements.append(Spacer(1, 5*mm))
+        elements.extend(self._build_quotation_title_bar(quotation, content_width, quotation_colors))
+        elements.append(Spacer(1, 5*mm))
+        elements.extend(self._build_quotation_info(quotation, company, content_width))
+        elements.append(Spacer(1, 8*mm))
+        elements.extend(self._build_quotation_items_table(quotation, content_width))
+        elements.append(Spacer(1, 5*mm))
+        elements.extend(self._build_quotation_totals(quotation, content_width))
+        elements.append(Spacer(1, 8*mm))
+
+        # Add notes if present
+        if quotation.notes:
+            elements.extend(self._build_quotation_notes(quotation, content_width))
+            elements.append(Spacer(1, 5*mm))
+
+        # Add terms if present
+        if quotation.terms_conditions:
+            elements.extend(self._build_quotation_terms(quotation, content_width))
+            elements.append(Spacer(1, 5*mm))
+
+        elements.extend(self._build_quotation_footer(company, content_width, quotation_colors))
+
+        # Build PDF
+        doc.build(elements)
+
+        # Get PDF bytes
+        pdf_bytes = buffer.getvalue()
+        buffer.close()
+
+        # Save to file if path provided
+        if output_path:
+            with open(output_path, 'wb') as f:
+                f.write(pdf_bytes)
+            return None
+
+        return pdf_bytes
+
+    def _build_quotation_header(self, company: Company, content_width: float) -> list:
+        """Build quotation header with company details"""
+        # Same as invoice header
+        return self._build_header(company, content_width)
+
+    def _build_quotation_title_bar(self, quotation: Quotation, content_width: float, qcolors: dict) -> list:
+        """Build QUOTATION title bar with orange color"""
+        elements = []
+
+        # Status badge
+        status_color = {
+            'DRAFT': colors.HexColor('#95a5a6'),
+            'SENT': colors.HexColor('#3498db'),
+            'ACCEPTED': colors.HexColor('#27ae60'),
+            'REJECTED': colors.HexColor('#e74c3c'),
+            'EXPIRED': colors.HexColor('#7f8c8d'),
+            'CONVERTED': colors.HexColor('#9b59b6')
+        }.get(quotation.status, colors.gray)
+
+        # Title table with orange background
+        title_data = [[
+            Paragraph(f"QUOTATION", self.styles['InvoiceTitle']),
+            Paragraph(f"Status: {quotation.status}", ParagraphStyle(
+                'StatusBadge',
+                parent=self.styles['Normal'],
+                fontSize=10,
+                textColor=colors.white,
+                alignment=TA_RIGHT
+            ))
+        ]]
+
+        title_table = Table(title_data, colWidths=[content_width * 0.6, content_width * 0.4])
+        title_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, -1), qcolors['header_bg']),
+            ('ALIGN', (0, 0), (0, 0), 'LEFT'),
+            ('ALIGN', (1, 0), (1, 0), 'RIGHT'),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('LEFTPADDING', (0, 0), (-1, -1), 15),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 15),
+            ('TOPPADDING', (0, 0), (-1, -1), 8),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+        ]))
+        elements.append(title_table)
+
+        return elements
+
+    def _build_quotation_info(self, quotation: Quotation, company: Company, content_width: float) -> list:
+        """Build quotation info section with validity date"""
+        elements = []
+
+        # Left side - Quotation details
+        quote_details = []
+        quote_details.append(f"<b>Quotation No:</b> {quotation.quotation_number}")
+        quote_details.append(f"<b>Date:</b> {format_date(quotation.quotation_date)}")
+        quote_details.append(f"<b>Valid Until:</b> {format_date(quotation.validity_date)}")
+
+        left_text = "<br/>".join(quote_details)
+        left_para = Paragraph(left_text, self.styles['CompanyDetails'])
+
+        # Right side - Customer details
+        right_details = []
+        right_details.append("<b>Quotation To:</b>")
+        if quotation.customer_name:
+            right_details.append(quotation.customer_name)
+
+            # Get customer details
+            if quotation.customer_id:
+                from database.models import Customer
+                customer = Customer.get_by_id(quotation.customer_id)
+                if customer:
+                    if customer.address:
+                        right_details.append(customer.address.replace('\n', '<br/>'))
+                    if customer.gstin:
+                        right_details.append(f"GSTIN: {customer.gstin}")
+                    if customer.phone:
+                        right_details.append(f"Phone: {customer.phone}")
+        else:
+            right_details.append("Customer details not specified")
+
+        right_text = "<br/>".join(right_details)
+        right_para = Paragraph(right_text, self.styles['CompanyDetails'])
+
+        # Create info table
+        info_table = Table(
+            [[left_para, right_para]],
+            colWidths=[content_width * 0.5, content_width * 0.5]
+        )
+        info_table.setStyle(TableStyle([
+            ('ALIGN', (0, 0), (0, 0), 'LEFT'),
+            ('ALIGN', (1, 0), (1, 0), 'LEFT'),
+            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+            ('LEFTPADDING', (0, 0), (-1, -1), 5),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 5),
+            ('BOX', (0, 0), (-1, -1), 0.5, COLORS['border']),
+            ('LINEAFTER', (0, 0), (0, -1), 0.5, COLORS['border']),
+            ('BACKGROUND', (0, 0), (-1, -1), COLORS['light_bg']),
+        ]))
+        elements.append(info_table)
+
+        return elements
+
+    def _build_quotation_items_table(self, quotation: Quotation, content_width: float) -> list:
+        """Build quotation items table"""
+        elements = []
+
+        # Determine if IGST or CGST/SGST
+        has_igst = quotation.igst_total > 0
+
+        # Define columns based on tax type
+        if has_igst:
+            headers = ['#', 'Description', 'HSN', 'Qty', 'Unit', 'Rate', 'IGST%', 'IGST', 'Total']
+            col_widths = [0.05, 0.25, 0.08, 0.08, 0.08, 0.12, 0.08, 0.12, 0.14]
+        else:
+            headers = ['#', 'Description', 'HSN', 'Qty', 'Unit', 'Rate', 'GST%', 'CGST', 'SGST', 'Total']
+            col_widths = [0.05, 0.22, 0.08, 0.07, 0.06, 0.11, 0.07, 0.1, 0.1, 0.14]
+
+        col_widths = [w * content_width for w in col_widths]
+
+        # Create header row
+        header_style = ParagraphStyle(
+            'TableHeader',
+            parent=self.styles['Normal'],
+            fontSize=8,
+            fontName='Helvetica-Bold',
+            textColor=colors.white,
+            alignment=TA_CENTER
+        )
+        header_row = [Paragraph(h, header_style) for h in headers]
+
+        # Create data rows
+        data = [header_row]
+        cell_style = ParagraphStyle(
+            'TableCell',
+            parent=self.styles['Normal'],
+            fontSize=8,
+            alignment=TA_CENTER
+        )
+        cell_style_left = ParagraphStyle(
+            'TableCellLeft',
+            parent=self.styles['Normal'],
+            fontSize=8,
+            alignment=TA_LEFT
+        )
+
+        for idx, item in enumerate(quotation.items, 1):
+            if has_igst:
+                row = [
+                    Paragraph(str(idx), cell_style),
+                    Paragraph(item.product_name, cell_style_left),
+                    Paragraph(item.hsn_code or '', cell_style),
+                    Paragraph(str(item.qty), cell_style),
+                    Paragraph(item.unit, cell_style),
+                    Paragraph(format_currency(item.rate, ''), cell_style),
+                    Paragraph(f"{item.gst_rate}%", cell_style),
+                    Paragraph(format_currency(item.igst, ''), cell_style),
+                    Paragraph(format_currency(item.total, ''), cell_style),
+                ]
+            else:
+                row = [
+                    Paragraph(str(idx), cell_style),
+                    Paragraph(item.product_name, cell_style_left),
+                    Paragraph(item.hsn_code or '', cell_style),
+                    Paragraph(str(item.qty), cell_style),
+                    Paragraph(item.unit, cell_style),
+                    Paragraph(format_currency(item.rate, ''), cell_style),
+                    Paragraph(f"{item.gst_rate}%", cell_style),
+                    Paragraph(format_currency(item.cgst, ''), cell_style),
+                    Paragraph(format_currency(item.sgst, ''), cell_style),
+                    Paragraph(format_currency(item.total, ''), cell_style),
+                ]
+            data.append(row)
+
+        # Create table
+        table = Table(data, colWidths=col_widths, repeatRows=1)
+
+        # Style the table
+        table_style = [
+            # Header styling
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#e67e22')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+            ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, 0), 8),
+            # Body styling
+            ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
+            ('FONTSIZE', (0, 1), (-1, -1), 8),
+            ('ALIGN', (0, 1), (0, -1), 'CENTER'),
+            ('ALIGN', (-1, 1), (-1, -1), 'RIGHT'),
+            # Grid
+            ('GRID', (0, 0), (-1, -1), 0.5, COLORS['border']),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('LEFTPADDING', (0, 0), (-1, -1), 4),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 4),
+            ('TOPPADDING', (0, 0), (-1, -1), 4),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+        ]
+
+        # Alternating row colors
+        for i in range(1, len(data)):
+            if i % 2 == 0:
+                table_style.append(('BACKGROUND', (0, i), (-1, i), COLORS['row_alt']))
+
+        table.setStyle(TableStyle(table_style))
+        elements.append(table)
+
+        return elements
+
+    def _build_quotation_totals(self, quotation: Quotation, content_width: float) -> list:
+        """Build quotation totals section"""
+        elements = []
+
+        has_igst = quotation.igst_total > 0
+
+        totals_data = [
+            ['Subtotal:', format_currency(quotation.subtotal, '')],
+        ]
+
+        if quotation.discount > 0:
+            totals_data.append(['Discount:', f"- {format_currency(quotation.discount, '')}"])
+
+        if has_igst:
+            totals_data.append(['IGST:', format_currency(quotation.igst_total, '')])
+        else:
+            totals_data.append(['CGST:', format_currency(quotation.cgst_total, '')])
+            totals_data.append(['SGST:', format_currency(quotation.sgst_total, '')])
+
+        totals_data.append(['GRAND TOTAL:', format_currency(quotation.grand_total, '')])
+
+        # Amount in words
+        amount_words = number_to_words_indian(quotation.grand_total)
+
+        totals_table = Table(
+            totals_data,
+            colWidths=[content_width * 0.35, content_width * 0.25],
+            hAlign='RIGHT'
+        )
+        totals_table.setStyle(TableStyle([
+            ('ALIGN', (0, 0), (0, -1), 'RIGHT'),
+            ('ALIGN', (1, 0), (1, -1), 'RIGHT'),
+            ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, -2), 9),
+            ('LINEABOVE', (0, -1), (-1, -1), 1.5, colors.HexColor('#e67e22')),
+            ('FONTSIZE', (0, -1), (-1, -1), 11),
+            ('TEXTCOLOR', (0, -1), (-1, -1), colors.HexColor('#e67e22')),
+            ('BOX', (0, 0), (-1, -1), 0.5, COLORS['border']),
+            ('BACKGROUND', (0, -1), (-1, -1), COLORS['light_bg']),
+        ]))
+        elements.append(totals_table)
+
+        elements.append(Spacer(1, 3*mm))
+        elements.append(Paragraph(
+            f"<b>Amount in Words:</b> {amount_words}",
+            self.styles['CompanyDetails']
+        ))
+
+        return elements
+
+    def _build_quotation_notes(self, quotation: Quotation, content_width: float) -> list:
+        """Build notes section"""
+        elements = []
+
+        elements.append(Paragraph("<b>Notes:</b>", self.styles['CompanyDetails']))
+        elements.append(Paragraph(quotation.notes, self.styles['CompanyDetails']))
+
+        return elements
+
+    def _build_quotation_terms(self, quotation: Quotation, content_width: float) -> list:
+        """Build terms and conditions section"""
+        elements = []
+
+        elements.append(Paragraph("<b>Terms & Conditions:</b>", self.styles['CompanyDetails']))
+        elements.append(Paragraph(quotation.terms_conditions, self.styles['CompanyDetails']))
+
+        return elements
+
+    def _build_quotation_footer(self, company: Company, content_width: float, qcolors: dict) -> list:
+        """Build quotation footer"""
+        elements = []
+
+        # Footer text
+        footer_style = ParagraphStyle(
+            'QuotationFooter',
+            parent=self.styles['Normal'],
+            fontSize=8,
+            textColor=COLORS['text_light'],
+            alignment=TA_CENTER
+        )
+
+        elements.append(HRFlowable(
+            width=content_width,
+            thickness=0.5,
+            color=COLORS['border'],
+            spaceBefore=5*mm,
+            spaceAfter=3*mm
+        ))
+
+        elements.append(Paragraph(
+            "This is a quotation and not a tax invoice. Prices are valid until the validity date mentioned above.",
+            footer_style
+        ))
+        elements.append(Paragraph(
+            f"For {company.name}",
+            ParagraphStyle(
+                'SignatureLine',
+                parent=self.styles['Normal'],
+                fontSize=9,
+                alignment=TA_RIGHT,
+                spaceBefore=10*mm
+            )
+        ))
+        elements.append(Paragraph(
+            "Authorized Signatory",
+            ParagraphStyle(
+                'SignatureLabel',
+                parent=self.styles['Normal'],
+                fontSize=8,
+                textColor=COLORS['text_light'],
+                alignment=TA_RIGHT
+            )
+        ))
+
+        return elements
+
+    def print_quotation(self, quotation: Quotation) -> bool:
+        """Generate and print quotation"""
+        import tempfile
+        import subprocess
+        import platform
+
+        try:
+            with tempfile.NamedTemporaryFile(suffix='.pdf', delete=False) as f:
+                pdf_path = f.name
+                self.generate_quotation_pdf(quotation, pdf_path)
 
             system = platform.system()
             if system == 'Windows':

@@ -1,6 +1,6 @@
 """Invoice generation and management service"""
-from datetime import date
-from typing import List, Optional
+from datetime import date, timedelta
+from typing import List, Optional, Dict
 from database.models import Invoice, InvoiceItem, Product, Customer
 from .gst_calculator import GSTCalculator, CartItem
 
@@ -235,3 +235,61 @@ class InvoiceService:
             'total_tax': round(total_cgst + total_sgst + total_igst, 2),
             'rate_wise': rate_wise
         }
+
+    def get_sales_trend(self, days: int = 7) -> List[Dict]:
+        """
+        Get daily sales for the last N days for chart visualization
+
+        Args:
+            days: Number of days to fetch (default 7)
+
+        Returns:
+            List of dicts with date, total sales, and invoice count
+        """
+        end_date = date.today()
+        start_date = end_date - timedelta(days=days - 1)
+
+        # Get all invoices for the period
+        invoices = Invoice.get_by_date_range(start_date, end_date)
+
+        # Group by date
+        daily_data = {}
+        for i in range(days):
+            d = start_date + timedelta(days=i)
+            daily_data[d] = {'date': d, 'total': 0.0, 'count': 0}
+
+        for inv in invoices:
+            if not inv.is_cancelled and inv.invoice_date in daily_data:
+                daily_data[inv.invoice_date]['total'] += inv.grand_total
+                daily_data[inv.invoice_date]['count'] += 1
+
+        # Convert to sorted list
+        result = sorted(daily_data.values(), key=lambda x: x['date'])
+        return result
+
+    def get_payment_mode_distribution(self, start_date: date, end_date: date) -> Dict[str, float]:
+        """
+        Get payment mode breakdown for date range
+
+        Args:
+            start_date: Start date
+            end_date: End date
+
+        Returns:
+            Dict with payment mode as key and total amount as value
+        """
+        invoices = Invoice.get_by_date_range(start_date, end_date)
+
+        distribution = {}
+        for inv in invoices:
+            if not inv.is_cancelled:
+                mode = inv.payment_mode or "CASH"
+                if mode not in distribution:
+                    distribution[mode] = 0.0
+                distribution[mode] += inv.grand_total
+
+        # Round values
+        for mode in distribution:
+            distribution[mode] = round(distribution[mode], 2)
+
+        return distribution

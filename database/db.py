@@ -283,6 +283,53 @@ def init_db():
         )
     """)
 
+    # Quotations table
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS quotations (
+            id INTEGER PRIMARY KEY,
+            quotation_number TEXT UNIQUE NOT NULL,
+            quotation_date DATE NOT NULL,
+            validity_date DATE NOT NULL,
+            customer_id INTEGER,
+            customer_name TEXT,
+            subtotal REAL,
+            cgst_total REAL,
+            sgst_total REAL,
+            igst_total REAL,
+            discount REAL DEFAULT 0,
+            grand_total REAL,
+            status TEXT DEFAULT 'DRAFT',
+            notes TEXT,
+            terms_conditions TEXT,
+            converted_invoice_id INTEGER,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (customer_id) REFERENCES customers(id),
+            FOREIGN KEY (converted_invoice_id) REFERENCES invoices(id)
+        )
+    """)
+
+    # Quotation Items table
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS quotation_items (
+            id INTEGER PRIMARY KEY,
+            quotation_id INTEGER NOT NULL,
+            product_id INTEGER,
+            product_name TEXT,
+            hsn_code TEXT,
+            qty REAL,
+            unit TEXT,
+            rate REAL,
+            gst_rate REAL,
+            taxable_value REAL,
+            cgst REAL,
+            sgst REAL,
+            igst REAL,
+            total REAL,
+            FOREIGN KEY (quotation_id) REFERENCES quotations(id),
+            FOREIGN KEY (product_id) REFERENCES products(id)
+        )
+    """)
+
     # Create indexes for faster lookups
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_products_barcode ON products(barcode)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_products_name ON products(name)")
@@ -295,6 +342,9 @@ def init_db():
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_credit_notes_date ON credit_notes(credit_note_date)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_credit_notes_invoice ON credit_notes(original_invoice_id)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_credit_notes_customer ON credit_notes(customer_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_quotations_date ON quotations(quotation_date)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_quotations_status ON quotations(status)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_quotations_customer ON quotations(customer_id)")
 
     # Insert default categories if empty
     cursor.execute("SELECT COUNT(*) FROM categories")

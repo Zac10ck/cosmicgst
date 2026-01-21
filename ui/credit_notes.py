@@ -522,7 +522,7 @@ class CreditNotesFrame(ctk.CTkFrame):
             filename = filedialog.asksaveasfilename(
                 defaultextension=".pdf",
                 filetypes=[("PDF files", "*.pdf")],
-                initialfilename=f"{credit_note.credit_note_number}.pdf"
+                initialfile=f"{credit_note.credit_note_number}.pdf"
             )
 
             if filename:

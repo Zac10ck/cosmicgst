@@ -460,7 +460,7 @@ class InvoicesFrame(ctk.CTkFrame):
             filename = filedialog.asksaveasfilename(
                 defaultextension=".pdf",
                 filetypes=[("PDF files", "*.pdf")],
-                initialfilename=f"{invoice.invoice_number}.pdf"
+                initialfile=f"{invoice.invoice_number}.pdf"
             )
 
             if filename:
@@ -495,7 +495,7 @@ class InvoicesFrame(ctk.CTkFrame):
         filename = filedialog.asksaveasfilename(
             defaultextension=".csv",
             filetypes=[("CSV files", "*.csv")],
-            initialfilename=f"invoices_{date.today().strftime('%Y%m%d')}.csv"
+            initialfile=f"invoices_{date.today().strftime('%Y%m%d')}.csv"
         )
 
         if filename:
@@ -688,7 +688,7 @@ class InvoiceDetailDialog(ctk.CTkToplevel):
             filename = filedialog.asksaveasfilename(
                 defaultextension=".pdf",
                 filetypes=[("PDF files", "*.pdf")],
-                initialfilename=f"{self.invoice.invoice_number}.pdf"
+                initialfile=f"{self.invoice.invoice_number}.pdf"
             )
 
             if filename:

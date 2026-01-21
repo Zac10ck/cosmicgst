@@ -402,7 +402,7 @@ class ReportsFrame(ctk.CTkFrame):
         filename = filedialog.asksaveasfilename(
             defaultextension=".json",
             filetypes=[("JSON files", "*.json")],
-            initialfilename=f"GSTR1_{from_date.strftime('%Y%m')}.json"
+            initialfile=f"GSTR1_{from_date.strftime('%Y%m')}.json"
         )
 
         if filename:
@@ -654,7 +654,7 @@ class ReportsFrame(ctk.CTkFrame):
         filename = filedialog.asksaveasfilename(
             defaultextension=".json",
             filetypes=[("JSON files", "*.json")],
-            initialfilename=f"eway_bill_{self.current_eway_data.document_number.replace('/', '_')}.json"
+            initialfile=f"eway_bill_{self.current_eway_data.document_number.replace('/', '_')}.json"
         )
 
         if filename:
@@ -705,7 +705,7 @@ class ReportsFrame(ctk.CTkFrame):
         filename = filedialog.asksaveasfilename(
             defaultextension=".xlsx",
             filetypes=[("Excel files", "*.xlsx")],
-            initialfilename=f"Sales_Report_{self.current_sales_report.get('date', date.today())}.xlsx"
+            initialfile=f"Sales_Report_{self.current_sales_report.get('date', date.today())}.xlsx"
         )
 
         if filename:
@@ -741,7 +741,7 @@ class ReportsFrame(ctk.CTkFrame):
         filename = filedialog.asksaveasfilename(
             defaultextension=".xlsx",
             filetypes=[("Excel files", "*.xlsx")],
-            initialfilename=f"GST_Report_{start_date}_to_{end_date}.xlsx"
+            initialfile=f"GST_Report_{start_date}_to_{end_date}.xlsx"
         )
 
         if filename:
@@ -774,7 +774,7 @@ class ReportsFrame(ctk.CTkFrame):
         filename = filedialog.asksaveasfilename(
             defaultextension=".xlsx",
             filetypes=[("Excel files", "*.xlsx")],
-            initialfilename=f"Stock_Report_{date.today()}.xlsx"
+            initialfile=f"Stock_Report_{date.today()}.xlsx"
         )
 
         if filename:

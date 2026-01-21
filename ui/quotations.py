@@ -788,7 +788,7 @@ class QuotationsFrame(ctk.CTkFrame):
             filename = filedialog.asksaveasfilename(
                 defaultextension=".pdf",
                 filetypes=[("PDF files", "*.pdf")],
-                initialfilename=f"{quotation.quotation_number}.pdf"
+                initialfile=f"{quotation.quotation_number}.pdf"
             )
 
             if filename:

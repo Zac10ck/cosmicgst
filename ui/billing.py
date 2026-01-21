@@ -693,7 +693,7 @@ class BillingFrame(ctk.CTkFrame):
         filename = filedialog.asksaveasfilename(
             defaultextension=".pdf",
             filetypes=[("PDF files", "*.pdf")],
-            initialfilename=f"{invoice.invoice_number}.pdf"
+            initialfile=f"{invoice.invoice_number}.pdf"
         )
 
         if filename:
@@ -715,7 +715,7 @@ class BillingFrame(ctk.CTkFrame):
         filename = filedialog.asksaveasfilename(
             defaultextension=".pdf",
             filetypes=[("PDF files", "*.pdf")],
-            initialfilename=f"{self.last_invoice.invoice_number}.pdf"
+            initialfile=f"{self.last_invoice.invoice_number}.pdf"
         )
 
         if filename:

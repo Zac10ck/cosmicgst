@@ -65,7 +65,7 @@ def sales_report():
     # Get invoices in range
     invoices = Invoice.query.filter(
         Invoice.invoice_date.between(start_date, end_date),
-        Invoice.status != 'CANCELLED'
+        Invoice.is_cancelled == False
     ).order_by(Invoice.invoice_date.desc()).all()
 
     # Calculate summary
@@ -150,7 +150,7 @@ def gst_report():
     # Get all invoice items in range
     items = db.session.query(InvoiceItem).join(Invoice).filter(
         Invoice.invoice_date.between(start_date, end_date),
-        Invoice.status != 'CANCELLED'
+        Invoice.is_cancelled == False
     ).all()
 
     # Group by GST rate
@@ -269,7 +269,7 @@ def gstr1_report():
     # Get all invoices for the month
     invoices = Invoice.query.filter(
         Invoice.invoice_date.between(start_date, end_date),
-        Invoice.status != 'CANCELLED'
+        Invoice.is_cancelled == False
     ).order_by(Invoice.invoice_date, Invoice.invoice_number).all()
 
     # B2B (Business to Business) - invoices to registered dealers
@@ -339,7 +339,7 @@ def export_gstr1():
     # Get invoices
     invoices = Invoice.query.filter(
         Invoice.invoice_date.between(start_date, end_date),
-        Invoice.status != 'CANCELLED'
+        Invoice.is_cancelled == False
     ).order_by(Invoice.invoice_date, Invoice.invoice_number).all()
 
     credit_notes = CreditNote.query.filter(
@@ -544,7 +544,7 @@ def export_sales():
 
     invoices = Invoice.query.filter(
         Invoice.invoice_date.between(start_date, end_date),
-        Invoice.status != 'CANCELLED'
+        Invoice.is_cancelled == False
     ).order_by(Invoice.invoice_date, Invoice.invoice_number).all()
 
     # Create workbook
@@ -580,7 +580,7 @@ def export_sales():
             inv.igst_total,
             inv.discount,
             inv.grand_total,
-            inv.status
+            'CANCELLED' if inv.is_cancelled else inv.payment_status
         ])
 
     # Totals row

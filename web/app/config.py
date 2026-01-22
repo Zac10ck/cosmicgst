@@ -37,16 +37,25 @@ class DevelopmentConfig(Config):
 
 
 class ProductionConfig(Config):
-    """Production configuration for PythonAnywhere"""
+    """Production configuration for Render/PythonAnywhere"""
     DEBUG = False
 
-    # MySQL connection for PythonAnywhere
-    DB_USER = os.environ.get('DB_USER', 'cosmicsurgical')
-    DB_PASS = os.environ.get('DB_PASS', '')
-    DB_HOST = os.environ.get('DB_HOST', 'cosmicsurgical.mysql.pythonanywhere-services.com')
-    DB_NAME = os.environ.get('DB_NAME', 'cosmicsurgical$billing')
+    @property
+    def SQLALCHEMY_DATABASE_URI(self):
+        # Render provides DATABASE_URL (PostgreSQL)
+        database_url = os.environ.get('DATABASE_URL')
+        if database_url:
+            # Render uses postgres:// but SQLAlchemy needs postgresql://
+            if database_url.startswith('postgres://'):
+                database_url = database_url.replace('postgres://', 'postgresql://', 1)
+            return database_url
 
-    SQLALCHEMY_DATABASE_URI = f"mysql+mysqlconnector://{DB_USER}:{DB_PASS}@{DB_HOST}/{DB_NAME}"
+        # Fallback to MySQL for PythonAnywhere
+        db_user = os.environ.get('DB_USER', 'cosmicsurgical')
+        db_pass = os.environ.get('DB_PASS', '')
+        db_host = os.environ.get('DB_HOST', 'cosmicsurgical.mysql.pythonanywhere-services.com')
+        db_name = os.environ.get('DB_NAME', 'cosmicsurgical$billing')
+        return f"mysql+mysqlconnector://{db_user}:{db_pass}@{db_host}/{db_name}"
 
 
 class TestingConfig(Config):

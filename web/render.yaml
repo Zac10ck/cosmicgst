@@ -1,0 +1,32 @@
+# Render Blueprint - Infrastructure as Code
+# https://render.com/docs/blueprint-spec
+
+services:
+  - type: web
+    name: gst-billing
+    runtime: python
+    region: singapore  # Closest to India
+    plan: free  # or starter, standard
+    branch: version-2
+    rootDir: web
+    buildCommand: "./build.sh"
+    startCommand: "gunicorn wsgi:app"
+    envVars:
+      - key: FLASK_ENV
+        value: production
+      - key: SECRET_KEY
+        generateValue: true
+      - key: PYTHON_VERSION
+        value: "3.11.0"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: gst-billing-db
+          property: connectionString
+    autoDeploy: true
+
+databases:
+  - name: gst-billing-db
+    plan: free  # or starter for persistent
+    region: singapore
+    databaseName: gst_billing
+    user: gst_admin

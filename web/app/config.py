@@ -40,22 +40,19 @@ class ProductionConfig(Config):
     """Production configuration for Render/PythonAnywhere"""
     DEBUG = False
 
-    @property
-    def SQLALCHEMY_DATABASE_URI(self):
-        # Render provides DATABASE_URL (PostgreSQL)
-        database_url = os.environ.get('DATABASE_URL')
-        if database_url:
-            # Render uses postgres:// but SQLAlchemy needs postgresql://
-            if database_url.startswith('postgres://'):
-                database_url = database_url.replace('postgres://', 'postgresql://', 1)
-            return database_url
+    # Database URL - Render provides DATABASE_URL (PostgreSQL)
+    _database_url = os.environ.get('DATABASE_URL', '')
 
-        # Fallback to MySQL for PythonAnywhere
-        db_user = os.environ.get('DB_USER', 'cosmicsurgical')
-        db_pass = os.environ.get('DB_PASS', '')
-        db_host = os.environ.get('DB_HOST', 'cosmicsurgical.mysql.pythonanywhere-services.com')
-        db_name = os.environ.get('DB_NAME', 'cosmicsurgical$billing')
-        return f"mysql+mysqlconnector://{db_user}:{db_pass}@{db_host}/{db_name}"
+    # Fix Render's postgres:// to postgresql://
+    if _database_url.startswith('postgres://'):
+        _database_url = _database_url.replace('postgres://', 'postgresql://', 1)
+
+    # Use DATABASE_URL if available, otherwise fallback to SQLite
+    if _database_url:
+        SQLALCHEMY_DATABASE_URI = _database_url
+    else:
+        # Fallback to SQLite for simple deployment
+        SQLALCHEMY_DATABASE_URI = 'sqlite:///' + str(Path(__file__).parent.parent / 'instance' / 'billing.db')
 
 
 class TestingConfig(Config):

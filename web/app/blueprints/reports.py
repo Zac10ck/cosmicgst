@@ -217,7 +217,7 @@ def stock_report():
         )
 
     if low_stock:
-        query = query.filter(Product.stock <= Product.min_stock)
+        query = query.filter(Product.stock_qty <= Product.low_stock_alert)
 
     if category_id:
         query = query.filter_by(category_id=category_id)
@@ -225,9 +225,9 @@ def stock_report():
     products = query.order_by(Product.name).all()
 
     # Calculate totals
-    total_stock_value = sum(p.stock * p.selling_price for p in products)
+    total_stock_value = sum(p.stock_qty * p.price for p in products)
     total_items = len(products)
-    low_stock_count = sum(1 for p in products if p.stock <= p.min_stock)
+    low_stock_count = sum(1 for p in products if p.stock_qty <= p.low_stock_alert)
 
     # Get categories for filter
     from app.models.category import Category
@@ -629,7 +629,7 @@ def export_stock():
 
     headers = [
         "Product Name", "Barcode", "HSN Code", "Category",
-        "Stock", "Unit", "Min Stock", "Selling Price", "Stock Value"
+        "Stock", "Unit", "Low Stock Alert", "Price", "Stock Value"
     ]
     ws.append(headers)
     for cell in ws[1]:
@@ -642,18 +642,18 @@ def export_stock():
             p.barcode or '',
             p.hsn_code or '',
             p.category.name if p.category else '',
-            p.stock,
+            p.stock_qty,
             p.unit,
-            p.min_stock,
-            p.selling_price,
-            p.stock * p.selling_price
+            p.low_stock_alert,
+            p.price,
+            p.stock_qty * p.price
         ])
 
     # Totals
     total_row = len(products) + 2
     ws.append([
         'TOTAL', '', '', '', '', '', '', '',
-        sum(p.stock * p.selling_price for p in products)
+        sum(p.stock_qty * p.price for p in products)
     ])
     for cell in ws[total_row]:
         cell.font = header_font

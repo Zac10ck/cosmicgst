@@ -92,17 +92,17 @@
                         <th>HSN</th>
                         <th>Category</th>
                         <th class="text-center">Stock</th>
-                        <th class="text-center">Min Stock</th>
+                        <th class="text-center">Low Alert</th>
                         <th class="text-end">Price</th>
                         <th class="text-end">Stock Value</th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for product in products %}
-                    <tr class="{{ 'table-danger' if product.stock <= product.min_stock }}">
+                    <tr class="{{ 'table-danger' if product.stock_qty <= product.low_stock_alert }}">
                         <td>
                             <strong>{{ product.name }}</strong>
-                            {% if product.stock <= product.min_stock %}
+                            {% if product.stock_qty <= product.low_stock_alert %}
                             <span class="badge bg-danger ms-1">Low Stock</span>
                             {% endif %}
                         </td>
@@ -110,11 +110,11 @@
                         <td>{{ product.hsn_code or '-' }}</td>
                         <td>{{ product.category.name if product.category else '-' }}</td>
                         <td class="text-center">
-                            <strong>{{ "%.2f"|format(product.stock) }}</strong> {{ product.unit }}
+                            <strong>{{ "%.2f"|format(product.stock_qty) }}</strong> {{ product.unit }}
                         </td>
-                        <td class="text-center">{{ product.min_stock }} {{ product.unit }}</td>
-                        <td class="text-end">Rs. {{ "%.2f"|format(product.selling_price) }}</td>
-                        <td class="text-end"><strong>Rs. {{ "%.2f"|format(product.stock * product.selling_price) }}</strong></td>
+                        <td class="text-center">{{ product.low_stock_alert }} {{ product.unit }}</td>
+                        <td class="text-end">Rs. {{ "%.2f"|format(product.price) }}</td>
+                        <td class="text-end"><strong>Rs. {{ "%.2f"|format(product.stock_qty * product.price) }}</strong></td>
                     </tr>
                     {% else %}
                     <tr>

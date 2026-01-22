@@ -628,14 +628,19 @@ class BillingFrame(ctk.CTkFrame):
         # Generate and print PDF
         try:
             self.pdf_gen.print_invoice(invoice)
+
+            # Get email status message
+            email_msg = self._get_email_status_message()
+
             messagebox.showinfo(
                 "Invoice Created",
-                f"Invoice {invoice.invoice_number} created successfully!"
+                f"Invoice {invoice.invoice_number} created successfully!{email_msg}"
             )
         except Exception as e:
+            email_msg = self._get_email_status_message()
             messagebox.showwarning(
                 "Print Warning",
-                f"Invoice saved but printing failed: {e}\n\nInvoice No: {invoice.invoice_number}"
+                f"Invoice saved but printing failed: {e}\n\nInvoice No: {invoice.invoice_number}{email_msg}"
             )
 
         # Clear cart and reset payment UI
@@ -1033,6 +1038,23 @@ class BillingFrame(ctk.CTkFrame):
             except ValueError:
                 pass
         return payments if payments else None
+
+    def _get_email_status_message(self) -> str:
+        """Get email status message for invoice creation feedback"""
+        try:
+            from services.email_service import is_email_auto_send_enabled
+            if not is_email_auto_send_enabled():
+                return ""
+
+            from services.network_service import NetworkService
+            network = NetworkService()
+
+            if network.is_online():
+                return "\n\nEmail will be sent shortly."
+            else:
+                return "\n\nEmail queued (will send when online)."
+        except Exception:
+            return ""
 
     def refresh(self):
         """Refresh customer list"""

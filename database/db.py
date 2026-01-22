@@ -330,6 +330,24 @@ def init_db():
         )
     """)
 
+    # Email Queue table (for offline email support)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS email_queue (
+            id INTEGER PRIMARY KEY,
+            invoice_id INTEGER NOT NULL,
+            recipient_email TEXT NOT NULL,
+            subject TEXT NOT NULL,
+            body TEXT NOT NULL,
+            pdf_data BLOB,
+            status TEXT DEFAULT 'PENDING',
+            retry_count INTEGER DEFAULT 0,
+            error_message TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            sent_at TIMESTAMP,
+            FOREIGN KEY (invoice_id) REFERENCES invoices(id)
+        )
+    """)
+
     # Create indexes for faster lookups
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_products_barcode ON products(barcode)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_products_name ON products(name)")
@@ -345,6 +363,7 @@ def init_db():
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_quotations_date ON quotations(quotation_date)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_quotations_status ON quotations(status)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_quotations_customer ON quotations(customer_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_email_queue_status ON email_queue(status)")
 
     # Insert default categories if empty
     cursor.execute("SELECT COUNT(*) FROM categories")

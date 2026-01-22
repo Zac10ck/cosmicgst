@@ -105,6 +105,17 @@ class InvoiceService:
                     reference_id=invoice.id
                 )
 
+        # Queue email if auto-send is enabled
+        try:
+            from services.email_service import is_email_auto_send_enabled
+            if is_email_auto_send_enabled():
+                from services.email_queue_service import EmailQueueService
+                queue_service = EmailQueueService()
+                queue_service.queue_invoice_email(invoice)
+        except Exception:
+            # Don't fail invoice creation if email queue fails
+            pass
+
         return invoice
 
     def cancel_invoice(self, invoice_id: int) -> bool:

@@ -1048,3 +1048,83 @@ class Quotation:
         conn.execute("DELETE FROM quotations WHERE id = ?", (self.id,))
         conn.commit()
         conn.close()
+
+
+@dataclass
+class EmailQueueEntry:
+    """Email queue entry for offline email support"""
+    id: Optional[int] = None
+    invoice_id: int = 0
+    recipient_email: str = ""
+    subject: str = ""
+    body: str = ""
+    pdf_data: Optional[bytes] = None
+    status: str = "PENDING"  # PENDING, SENDING, SENT, FAILED
+    retry_count: int = 0
+    error_message: str = ""
+    created_at: Optional[datetime] = None
+    sent_at: Optional[datetime] = None
+
+    @classmethod
+    def get_by_id(cls, entry_id: int) -> Optional['EmailQueueEntry']:
+        """Get queue entry by ID"""
+        conn = get_connection()
+        row = conn.execute("SELECT * FROM email_queue WHERE id = ?", (entry_id,)).fetchone()
+        conn.close()
+        if row:
+            return cls(**dict(row))
+        return None
+
+    @classmethod
+    def get_pending(cls) -> List['EmailQueueEntry']:
+        """Get pending emails (including retryable failed ones)"""
+        conn = get_connection()
+        rows = conn.execute("""
+            SELECT * FROM email_queue
+            WHERE status = 'PENDING' OR (status = 'FAILED' AND retry_count < 3)
+            ORDER BY created_at ASC
+        """).fetchall()
+        conn.close()
+        return [cls(**dict(row)) for row in rows]
+
+    @classmethod
+    def get_by_invoice(cls, invoice_id: int) -> Optional['EmailQueueEntry']:
+        """Get queue entry for an invoice"""
+        conn = get_connection()
+        row = conn.execute(
+            "SELECT * FROM email_queue WHERE invoice_id = ? ORDER BY created_at DESC LIMIT 1",
+            (invoice_id,)
+        ).fetchone()
+        conn.close()
+        if row:
+            return cls(**dict(row))
+        return None
+
+    def save(self):
+        """Save or update queue entry"""
+        conn = get_connection()
+        if self.id:
+            conn.execute("""
+                UPDATE email_queue SET invoice_id=?, recipient_email=?, subject=?,
+                body=?, pdf_data=?, status=?, retry_count=?, error_message=?, sent_at=?
+                WHERE id=?
+            """, (self.invoice_id, self.recipient_email, self.subject, self.body,
+                  self.pdf_data, self.status, self.retry_count, self.error_message,
+                  self.sent_at, self.id))
+        else:
+            cursor = conn.execute("""
+                INSERT INTO email_queue (invoice_id, recipient_email, subject, body,
+                pdf_data, status, retry_count, error_message)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """, (self.invoice_id, self.recipient_email, self.subject, self.body,
+                  self.pdf_data, self.status, self.retry_count, self.error_message))
+            self.id = cursor.lastrowid
+        conn.commit()
+        conn.close()
+
+    def delete(self):
+        """Delete queue entry"""
+        conn = get_connection()
+        conn.execute("DELETE FROM email_queue WHERE id = ?", (self.id,))
+        conn.commit()
+        conn.close()

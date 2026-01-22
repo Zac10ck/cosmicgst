@@ -1,7 +1,7 @@
 """Settings screen"""
 import customtkinter as ctk
 from tkinter import messagebox, filedialog
-from database.models import Company
+from database.models import Company, AppSettings
 from services.backup_service import BackupService
 from utils.validators import validate_gstin, validate_phone, validate_email
 
@@ -34,10 +34,12 @@ class SettingsFrame(ctk.CTkFrame):
         self.tabview.grid(row=1, column=0, sticky="nsew")
 
         self.tabview.add("Company Details")
+        self.tabview.add("Email")
         self.tabview.add("Backup")
         self.tabview.add("About")
 
         self._create_company_tab()
+        self._create_email_tab()
         self._create_backup_tab()
         self._create_about_tab()
 
@@ -85,6 +87,237 @@ class SettingsFrame(ctk.CTkFrame):
             text="Save Company Details",
             command=self._save_company
         ).pack(pady=30)
+
+    def _create_email_tab(self):
+        """Create email settings tab"""
+        tab = self.tabview.tab("Email")
+
+        # Scrollable form
+        form = ctk.CTkScrollableFrame(tab, fg_color="transparent")
+        form.pack(fill="both", expand=True, padx=20, pady=10)
+
+        # Enable Email
+        self.email_enabled_var = ctk.BooleanVar()
+        ctk.CTkCheckBox(
+            form,
+            text="Enable Email Notifications",
+            variable=self.email_enabled_var,
+            font=ctk.CTkFont(size=14, weight="bold")
+        ).pack(anchor="w", pady=(10, 20))
+
+        # Sender Configuration Section
+        ctk.CTkLabel(
+            form,
+            text="Sender Configuration (Gmail)",
+            font=ctk.CTkFont(size=14, weight="bold")
+        ).pack(anchor="w", pady=(10, 5))
+
+        ctk.CTkLabel(form, text="Gmail Address").pack(anchor="w", pady=(10, 5))
+        self.sender_email_var = ctk.StringVar()
+        ctk.CTkEntry(form, textvariable=self.sender_email_var, width=400,
+                     placeholder_text="your.email@gmail.com").pack(anchor="w")
+
+        ctk.CTkLabel(form, text="App Password").pack(anchor="w", pady=(15, 5))
+        self.app_password_var = ctk.StringVar()
+        ctk.CTkEntry(form, textvariable=self.app_password_var, width=400,
+                     show="*", placeholder_text="16-character app password").pack(anchor="w")
+
+        # Help text for app password
+        help_text = ctk.CTkLabel(
+            form,
+            text="Get App Password: Google Account > Security > 2-Step Verification > App passwords",
+            text_color="gray",
+            font=ctk.CTkFont(size=11)
+        )
+        help_text.pack(anchor="w", pady=(2, 0))
+
+        # Recipient Section
+        ctk.CTkLabel(
+            form,
+            text="Recipient",
+            font=ctk.CTkFont(size=14, weight="bold")
+        ).pack(anchor="w", pady=(25, 5))
+
+        ctk.CTkLabel(form, text="Send invoices to").pack(anchor="w", pady=(10, 5))
+        self.recipient_email_var = ctk.StringVar()
+        ctk.CTkEntry(form, textvariable=self.recipient_email_var, width=400,
+                     placeholder_text="accounting@yourcompany.com").pack(anchor="w")
+
+        # Options Section
+        ctk.CTkLabel(
+            form,
+            text="Options",
+            font=ctk.CTkFont(size=14, weight="bold")
+        ).pack(anchor="w", pady=(25, 5))
+
+        self.auto_send_var = ctk.BooleanVar(value=True)
+        ctk.CTkCheckBox(
+            form,
+            text="Auto-send email when invoice is created",
+            variable=self.auto_send_var
+        ).pack(anchor="w", pady=(10, 5))
+
+        # Buttons
+        btn_frame = ctk.CTkFrame(form, fg_color="transparent")
+        btn_frame.pack(anchor="w", pady=30)
+
+        ctk.CTkButton(
+            btn_frame,
+            text="Test Connection",
+            command=self._test_email_connection,
+            fg_color="gray"
+        ).pack(side="left", padx=(0, 10))
+
+        ctk.CTkButton(
+            btn_frame,
+            text="Save Email Settings",
+            command=self._save_email_settings
+        ).pack(side="left")
+
+        # Queue Status Section
+        ctk.CTkLabel(
+            form,
+            text="Email Queue Status",
+            font=ctk.CTkFont(size=14, weight="bold")
+        ).pack(anchor="w", pady=(20, 10))
+
+        self.queue_status_frame = ctk.CTkFrame(form)
+        self.queue_status_frame.pack(fill="x", pady=10)
+
+        self.queue_status_label = ctk.CTkLabel(
+            self.queue_status_frame,
+            text="Checking queue status..."
+        )
+        self.queue_status_label.pack(pady=10)
+
+        queue_btn_frame = ctk.CTkFrame(form, fg_color="transparent")
+        queue_btn_frame.pack(anchor="w", pady=10)
+
+        ctk.CTkButton(
+            queue_btn_frame,
+            text="Process Queue Now",
+            command=self._process_email_queue,
+            fg_color="green"
+        ).pack(side="left", padx=(0, 10))
+
+        ctk.CTkButton(
+            queue_btn_frame,
+            text="Refresh Status",
+            command=self._refresh_email_queue_status
+        ).pack(side="left")
+
+        # Load settings
+        self._load_email_settings()
+        self._refresh_email_queue_status()
+
+    def _load_email_settings(self):
+        """Load email settings from database"""
+        self.email_enabled_var.set(AppSettings.get('email_enabled', 'false') == 'true')
+        self.sender_email_var.set(AppSettings.get('email_sender_address', ''))
+        self.app_password_var.set(AppSettings.get('email_app_password', ''))
+        self.recipient_email_var.set(AppSettings.get('email_recipient', ''))
+        self.auto_send_var.set(AppSettings.get('email_auto_send', 'true') == 'true')
+
+    def _save_email_settings(self):
+        """Save email settings to database"""
+        # Validate sender email
+        sender = self.sender_email_var.get().strip()
+        if sender:
+            valid, error = validate_email(sender)
+            if not valid:
+                messagebox.showerror("Error", f"Sender email: {error}")
+                return
+
+        # Validate recipient email
+        recipient = self.recipient_email_var.get().strip()
+        if recipient:
+            valid, error = validate_email(recipient)
+            if not valid:
+                messagebox.showerror("Error", f"Recipient email: {error}")
+                return
+
+        # Save settings
+        AppSettings.set('email_enabled', 'true' if self.email_enabled_var.get() else 'false')
+        AppSettings.set('email_sender_address', sender)
+        AppSettings.set('email_app_password', self.app_password_var.get())
+        AppSettings.set('email_recipient', recipient)
+        AppSettings.set('email_auto_send', 'true' if self.auto_send_var.get() else 'false')
+
+        messagebox.showinfo("Success", "Email settings saved successfully!")
+
+    def _test_email_connection(self):
+        """Test email connection"""
+        # Save current settings first
+        sender = self.sender_email_var.get().strip()
+        password = self.app_password_var.get()
+
+        if not sender or not password:
+            messagebox.showerror("Error", "Please enter Gmail address and App Password first.")
+            return
+
+        # Save temporarily for testing
+        AppSettings.set('email_sender_address', sender)
+        AppSettings.set('email_app_password', password)
+
+        # Test connection
+        try:
+            from services.email_service import EmailService
+            email_service = EmailService()
+            success, message = email_service.test_connection()
+
+            if success:
+                messagebox.showinfo("Success", message)
+            else:
+                messagebox.showerror("Connection Failed", message)
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to test connection: {str(e)}")
+
+    def _refresh_email_queue_status(self):
+        """Refresh email queue status display"""
+        try:
+            from services.email_queue_service import EmailQueueService
+            from services.network_service import NetworkService
+
+            queue_service = EmailQueueService()
+            network_service = NetworkService()
+
+            status = queue_service.get_queue_status()
+            is_online = network_service.is_online()
+
+            connection_status = "Online" if is_online else "Offline"
+            connection_color = "green" if is_online else "red"
+
+            status_text = (
+                f"Connection: {connection_status}  |  "
+                f"Pending: {status['pending']}  |  "
+                f"Failed: {status['failed']}  |  "
+                f"Sent: {status['sent']}"
+            )
+
+            self.queue_status_label.configure(text=status_text)
+        except Exception as e:
+            self.queue_status_label.configure(text=f"Error loading status: {str(e)}")
+
+    def _process_email_queue(self):
+        """Process email queue manually"""
+        try:
+            from services.email_queue_service import EmailQueueService
+            from services.network_service import NetworkService
+
+            network_service = NetworkService()
+            if not network_service.is_online():
+                messagebox.showwarning("Offline", "Cannot process queue - no internet connection.")
+                return
+
+            queue_service = EmailQueueService()
+            result = queue_service.process_queue()
+
+            message = f"Queue processed:\n\nSent: {result['sent']}\nFailed: {result['failed']}\nRemaining: {result['remaining']}"
+            messagebox.showinfo("Queue Processed", message)
+
+            self._refresh_email_queue_status()
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to process queue: {str(e)}")
 
     def _create_backup_tab(self):
         """Create backup settings tab"""
@@ -374,4 +607,6 @@ class SettingsFrame(ctk.CTkFrame):
     def refresh(self):
         """Refresh settings"""
         self._load_company()
+        self._load_email_settings()
+        self._refresh_email_queue_status()
         self._refresh_backup_status()

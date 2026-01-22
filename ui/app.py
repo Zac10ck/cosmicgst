@@ -28,11 +28,17 @@ class App(ctk.CTk):
         # Create main content area
         self._create_content_area()
 
+        # Initialize email processor
+        self._init_email_processor()
+
         # Current active frame
         self.current_frame = None
 
         # Show dashboard by default
         self.show_frame("dashboard")
+
+        # Handle window close
+        self.protocol("WM_DELETE_WINDOW", self._on_close)
 
     def _create_sidebar(self):
         """Create left sidebar with navigation buttons"""
@@ -89,7 +95,19 @@ class App(ctk.CTk):
             hover_color="darkgreen",
             command=self._do_backup
         )
-        self.backup_btn.grid(row=11, column=0, padx=10, pady=(5, 20), sticky="ew")
+        self.backup_btn.grid(row=11, column=0, padx=10, pady=(5, 10), sticky="ew")
+
+        # Email status indicator
+        self.email_status_frame = ctk.CTkFrame(self.sidebar, fg_color="transparent")
+        self.email_status_frame.grid(row=12, column=0, padx=10, pady=(0, 20), sticky="ew")
+
+        self.email_status_label = ctk.CTkLabel(
+            self.email_status_frame,
+            text="Email: --",
+            font=ctk.CTkFont(size=11),
+            text_color="gray"
+        )
+        self.email_status_label.pack(anchor="w")
 
     def _create_content_area(self):
         """Create main content area"""
@@ -169,6 +187,66 @@ class App(ctk.CTk):
                 "Backup Failed",
                 f"Failed to create backup:\n{result.get('error', 'Unknown error')}"
             )
+
+    def _init_email_processor(self):
+        """Initialize background email queue processor"""
+        try:
+            from services.email_queue_processor import EmailQueueProcessor
+
+            self.email_processor = EmailQueueProcessor(self)
+            self.email_processor.set_callback('on_queue_processed', self._on_queue_processed)
+            self.email_processor.set_callback('on_connection_status_changed', self._on_connection_changed)
+            self.email_processor.start()
+
+            # Initial status update
+            self._update_email_status()
+        except Exception as e:
+            print(f"Failed to initialize email processor: {e}")
+            self.email_processor = None
+
+    def _update_email_status(self):
+        """Update email status indicator"""
+        try:
+            if self.email_processor:
+                status = self.email_processor.get_status()
+                connection = "Online" if status['online'] else "Offline"
+                pending = status['pending']
+
+                if pending > 0:
+                    text = f"Email: {connection} ({pending} pending)"
+                else:
+                    text = f"Email: {connection}"
+
+                color = "green" if status['online'] else "gray"
+                self.email_status_label.configure(text=text, text_color=color)
+        except Exception:
+            pass
+
+    def _on_queue_processed(self, result):
+        """Handle queue processing complete"""
+        self._update_email_status()
+
+        # Show notification if emails were sent
+        if result.get('sent', 0) > 0:
+            from tkinter import messagebox
+            messagebox.showinfo(
+                "Emails Sent",
+                f"Successfully sent {result['sent']} email(s)."
+            )
+
+    def _on_connection_changed(self, is_online):
+        """Handle connection status change"""
+        self._update_email_status()
+
+    def _on_close(self):
+        """Handle window close - cleanup resources"""
+        try:
+            if hasattr(self, 'email_processor') and self.email_processor:
+                self.email_processor.stop()
+        except Exception:
+            pass
+
+        self.destroy()
 
 
 def run_app():

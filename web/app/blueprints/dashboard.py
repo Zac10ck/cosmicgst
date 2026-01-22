@@ -54,8 +54,10 @@ def index():
     ).all()
     monthly_sales = sum(inv.grand_total for inv in monthly_invoices)
 
-    # Pending quotations
-    pending_quotations = Quotation.query.filter_by(status='PENDING').count()
+    # Pending quotations (DRAFT or SENT status)
+    pending_quotations = Quotation.query.filter(
+        Quotation.status.in_(['DRAFT', 'SENT'])
+    ).count()
 
     # Low stock items
     low_stock_products = Product.query.filter(

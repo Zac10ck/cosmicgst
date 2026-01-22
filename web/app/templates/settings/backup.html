@@ -1,0 +1,100 @@
+{% extends 'base.html' %}
+
+{% block title %}Backup & Restore - GST Billing{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-cloud-arrow-up me-2"></i>Backup & Restore</h2>
+    <a href="{{ url_for('settings.index') }}" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left me-1"></i>Back to Settings
+    </a>
+</div>
+
+<div class="row">
+    <!-- Backup Section -->
+    <div class="col-lg-6 mb-4">
+        <div class="card h-100">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0"><i class="bi bi-cloud-download me-2"></i>Create Backup</h5>
+            </div>
+            <div class="card-body">
+                <p class="text-muted">Create a complete backup of your data including:</p>
+                <ul class="text-muted">
+                    <li>Company settings</li>
+                    <li>Categories</li>
+                    <li>Products</li>
+                    <li>Customers</li>
+                    <li>Invoices and invoice items</li>
+                </ul>
+
+                <div class="d-grid">
+                    <a href="{{ url_for('settings.create_backup') }}" class="btn btn-primary btn-lg">
+                        <i class="bi bi-download me-2"></i>Download Backup
+                    </a>
+                </div>
+
+                <div class="alert alert-info mt-3 mb-0">
+                    <i class="bi bi-info-circle me-2"></i>
+                    Backup files are in JSON format and can be used to restore data.
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Restore Section -->
+    <div class="col-lg-6 mb-4">
+        <div class="card h-100">
+            <div class="card-header bg-warning text-dark">
+                <h5 class="mb-0"><i class="bi bi-cloud-upload me-2"></i>Restore from Backup</h5>
+            </div>
+            <div class="card-body">
+                <p class="text-muted">Restore data from a previously created backup file.</p>
+
+                <div class="alert alert-warning">
+                    <i class="bi bi-exclamation-triangle me-2"></i>
+                    <strong>Warning:</strong> Restoring will update existing records and add new ones.
+                    Existing data will NOT be deleted.
+                </div>
+
+                <form action="{{ url_for('settings.restore_backup') }}" method="POST" enctype="multipart/form-data"
+                      onsubmit="return confirm('Are you sure you want to restore from this backup? Existing records may be updated.')">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+                    <div class="mb-3">
+                        <label class="form-label">Select Backup File (.json)</label>
+                        <input type="file" class="form-control" name="file" accept=".json" required>
+                    </div>
+
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-warning btn-lg">
+                            <i class="bi bi-upload me-2"></i>Restore Backup
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h5 class="mb-0"><i class="bi bi-shield-check me-2"></i>Best Practices</h5>
+    </div>
+    <div class="card-body">
+        <div class="row">
+            <div class="col-md-4">
+                <h6><i class="bi bi-calendar-check text-primary me-2"></i>Regular Backups</h6>
+                <p class="text-muted small">Create backups regularly (daily or weekly) to protect your data.</p>
+            </div>
+            <div class="col-md-4">
+                <h6><i class="bi bi-cloud text-primary me-2"></i>Store Safely</h6>
+                <p class="text-muted small">Keep backup files in multiple locations (cloud storage, external drive).</p>
+            </div>
+            <div class="col-md-4">
+                <h6><i class="bi bi-check-circle text-primary me-2"></i>Verify Backups</h6>
+                <p class="text-muted small">Periodically test restoring from backups to ensure they work.</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

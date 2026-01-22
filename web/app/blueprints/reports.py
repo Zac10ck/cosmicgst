@@ -670,3 +670,280 @@ def export_stock():
         as_attachment=True,
         download_name=filename
     )
+
+
+@reports_bp.route('/aging')
+@login_required
+def customer_aging_report():
+    """Customer aging report - outstanding payments by age"""
+    # Get all unpaid/partial invoices
+    invoices = Invoice.query.filter(
+        Invoice.is_cancelled == False,
+        Invoice.payment_status.in_(['UNPAID', 'PARTIAL']),
+        Invoice.balance_due > 0
+    ).order_by(Invoice.invoice_date).all()
+
+    today = date.today()
+
+    # Group by aging buckets
+    aging_data = {
+        'current': [],      # 0-30 days
+        'days_31_60': [],   # 31-60 days
+        'days_61_90': [],   # 61-90 days
+        'over_90': []       # >90 days
+    }
+
+    customer_totals = {}
+
+    for inv in invoices:
+        days_old = (today - inv.invoice_date).days if inv.invoice_date else 0
+
+        # Determine bucket
+        if days_old <= 30:
+            bucket = 'current'
+        elif days_old <= 60:
+            bucket = 'days_31_60'
+        elif days_old <= 90:
+            bucket = 'days_61_90'
+        else:
+            bucket = 'over_90'
+
+        inv_data = {
+            'invoice': inv,
+            'days_old': days_old,
+            'bucket': bucket
+        }
+        aging_data[bucket].append(inv_data)
+
+        # Track customer totals
+        customer_name = inv.customer_name or 'Walk-in'
+        if customer_name not in customer_totals:
+            customer_totals[customer_name] = {
+                'name': customer_name,
+                'current': 0,
+                'days_31_60': 0,
+                'days_61_90': 0,
+                'over_90': 0,
+                'total': 0
+            }
+        customer_totals[customer_name][bucket] += inv.balance_due
+        customer_totals[customer_name]['total'] += inv.balance_due
+
+    # Summary
+    totals = {
+        'current': sum(inv.balance_due for inv in [d['invoice'] for d in aging_data['current']]),
+        'days_31_60': sum(inv.balance_due for inv in [d['invoice'] for d in aging_data['days_31_60']]),
+        'days_61_90': sum(inv.balance_due for inv in [d['invoice'] for d in aging_data['days_61_90']]),
+        'over_90': sum(inv.balance_due for inv in [d['invoice'] for d in aging_data['over_90']])
+    }
+    totals['total'] = sum(totals.values())
+
+    # Sort customers by total outstanding
+    customer_list = sorted(customer_totals.values(), key=lambda x: x['total'], reverse=True)
+
+    return render_template(
+        'reports/aging.html',
+        aging_data=aging_data,
+        customer_totals=customer_list,
+        totals=totals,
+        invoice_count=len(invoices)
+    )
+
+
+@reports_bp.route('/top-products')
+@login_required
+def top_products_report():
+    """Top selling products report"""
+    start_date_str = request.args.get('start_date', '')
+    end_date_str = request.args.get('end_date', '')
+    limit = request.args.get('limit', 20, type=int)
+
+    today = date.today()
+    if not start_date_str:
+        start_date = date(today.year, today.month, 1)
+    else:
+        start_date = datetime.strptime(start_date_str, '%Y-%m-%d').date()
+
+    if not end_date_str:
+        end_date = today
+    else:
+        end_date = datetime.strptime(end_date_str, '%Y-%m-%d').date()
+
+    # Top products by revenue
+    top_by_revenue = db.session.query(
+        InvoiceItem.product_name,
+        InvoiceItem.hsn_code,
+        func.sum(InvoiceItem.qty).label('total_qty'),
+        func.sum(InvoiceItem.taxable_value).label('total_taxable'),
+        func.sum(InvoiceItem.total).label('total_revenue'),
+        func.count(InvoiceItem.id).label('times_sold')
+    ).join(Invoice).filter(
+        Invoice.invoice_date.between(start_date, end_date),
+        Invoice.is_cancelled == False
+    ).group_by(InvoiceItem.product_name, InvoiceItem.hsn_code)\
+     .order_by(func.sum(InvoiceItem.total).desc()).limit(limit).all()
+
+    # Top products by quantity
+    top_by_qty = db.session.query(
+        InvoiceItem.product_name,
+        InvoiceItem.hsn_code,
+        func.sum(InvoiceItem.qty).label('total_qty'),
+        func.sum(InvoiceItem.total).label('total_revenue'),
+        func.count(InvoiceItem.id).label('times_sold')
+    ).join(Invoice).filter(
+        Invoice.invoice_date.between(start_date, end_date),
+        Invoice.is_cancelled == False
+    ).group_by(InvoiceItem.product_name, InvoiceItem.hsn_code)\
+     .order_by(func.sum(InvoiceItem.qty).desc()).limit(limit).all()
+
+    # Summary
+    total_revenue = sum(p.total_revenue for p in top_by_revenue)
+    total_qty = sum(p.total_qty for p in top_by_qty)
+
+    return render_template(
+        'reports/top_products.html',
+        top_by_revenue=top_by_revenue,
+        top_by_qty=top_by_qty,
+        start_date=start_date,
+        end_date=end_date,
+        total_revenue=total_revenue,
+        total_qty=total_qty,
+        limit=limit
+    )
+
+
+@reports_bp.route('/customer-sales')
+@login_required
+def customer_sales_report():
+    """Customer-wise sales analysis"""
+    start_date_str = request.args.get('start_date', '')
+    end_date_str = request.args.get('end_date', '')
+
+    today = date.today()
+    if not start_date_str:
+        start_date = date(today.year, today.month, 1)
+    else:
+        start_date = datetime.strptime(start_date_str, '%Y-%m-%d').date()
+
+    if not end_date_str:
+        end_date = today
+    else:
+        end_date = datetime.strptime(end_date_str, '%Y-%m-%d').date()
+
+    # Customer sales summary
+    customer_sales = db.session.query(
+        Invoice.customer_id,
+        Invoice.customer_name,
+        func.count(Invoice.id).label('invoice_count'),
+        func.sum(Invoice.subtotal).label('total_subtotal'),
+        func.sum(Invoice.cgst_total + Invoice.sgst_total + Invoice.igst_total).label('total_tax'),
+        func.sum(Invoice.grand_total).label('total_sales'),
+        func.avg(Invoice.grand_total).label('avg_invoice')
+    ).filter(
+        Invoice.invoice_date.between(start_date, end_date),
+        Invoice.is_cancelled == False
+    ).group_by(Invoice.customer_id, Invoice.customer_name)\
+     .order_by(func.sum(Invoice.grand_total).desc()).all()
+
+    # Get customer details
+    customer_data = []
+    for cs in customer_sales:
+        customer = Customer.query.get(cs.customer_id) if cs.customer_id else None
+        customer_data.append({
+            'customer': customer,
+            'name': cs.customer_name or 'Walk-in',
+            'invoice_count': cs.invoice_count,
+            'total_subtotal': cs.total_subtotal or 0,
+            'total_tax': cs.total_tax or 0,
+            'total_sales': cs.total_sales or 0,
+            'avg_invoice': cs.avg_invoice or 0
+        })
+
+    # Summary
+    total_sales = sum(c['total_sales'] for c in customer_data)
+    total_invoices = sum(c['invoice_count'] for c in customer_data)
+    unique_customers = len(customer_data)
+
+    return render_template(
+        'reports/customer_sales.html',
+        customer_data=customer_data,
+        start_date=start_date,
+        end_date=end_date,
+        total_sales=total_sales,
+        total_invoices=total_invoices,
+        unique_customers=unique_customers
+    )
+
+
+@reports_bp.route('/profit-loss')
+@login_required
+def profit_loss_report():
+    """Simple Profit & Loss report"""
+    start_date_str = request.args.get('start_date', '')
+    end_date_str = request.args.get('end_date', '')
+
+    today = date.today()
+    if not start_date_str:
+        # Default to current financial year
+        if today.month >= 4:
+            start_date = date(today.year, 4, 1)
+        else:
+            start_date = date(today.year - 1, 4, 1)
+    else:
+        start_date = datetime.strptime(start_date_str, '%Y-%m-%d').date()
+
+    if not end_date_str:
+        end_date = today
+    else:
+        end_date = datetime.strptime(end_date_str, '%Y-%m-%d').date()
+
+    # Revenue from invoices
+    invoices = Invoice.query.filter(
+        Invoice.invoice_date.between(start_date, end_date),
+        Invoice.is_cancelled == False
+    ).all()
+
+    gross_sales = sum(inv.subtotal for inv in invoices)
+    total_tax_collected = sum(inv.cgst_total + inv.sgst_total + inv.igst_total for inv in invoices)
+    total_discount = sum(inv.discount for inv in invoices)
+    net_sales = sum(inv.grand_total for inv in invoices)
+
+    # Credit notes (returns)
+    credit_notes = CreditNote.query.filter(
+        CreditNote.credit_note_date.between(start_date, end_date),
+        CreditNote.status != 'CANCELLED'
+    ).all()
+
+    returns_value = sum(cn.grand_total for cn in credit_notes)
+
+    # Cost of goods sold (based on purchase price if available)
+    # For now, we'll estimate based on products
+    cogs = 0
+    for inv in invoices:
+        for item in inv.items:
+            if item.product_id:
+                product = Product.query.get(item.product_id)
+                if product and hasattr(product, 'cost_price') and product.cost_price:
+                    cogs += product.cost_price * item.qty
+
+    # Gross profit
+    gross_profit = net_sales - returns_value - cogs
+
+    # Operating metrics
+    invoice_count = len(invoices)
+    avg_invoice_value = net_sales / invoice_count if invoice_count > 0 else 0
+
+    return render_template(
+        'reports/profit_loss.html',
+        start_date=start_date,
+        end_date=end_date,
+        gross_sales=gross_sales,
+        total_discount=total_discount,
+        net_sales=net_sales,
+        returns_value=returns_value,
+        cogs=cogs,
+        gross_profit=gross_profit,
+        total_tax_collected=total_tax_collected,
+        invoice_count=invoice_count,
+        avg_invoice_value=avg_invoice_value
+    )

@@ -72,6 +72,38 @@
             </div>
         </div>
     </div>
+
+    <!-- Import/Export -->
+    <div class="col-md-6 col-lg-4">
+        <div class="card h-100">
+            <div class="card-body text-center">
+                <div class="mb-3">
+                    <i class="bi bi-arrow-left-right display-4 text-secondary"></i>
+                </div>
+                <h5 class="card-title">Import/Export</h5>
+                <p class="card-text text-muted">Bulk import or export products and customers via Excel.</p>
+                <a href="{{ url_for('settings.import_export') }}" class="btn btn-secondary">
+                    <i class="bi bi-arrow-right me-1"></i>Open
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Backup -->
+    <div class="col-md-6 col-lg-4">
+        <div class="card h-100">
+            <div class="card-body text-center">
+                <div class="mb-3">
+                    <i class="bi bi-cloud-arrow-up display-4 text-danger"></i>
+                </div>
+                <h5 class="card-title">Backup & Restore</h5>
+                <p class="card-text text-muted">Create backups and restore your data when needed.</p>
+                <a href="{{ url_for('settings.backup_page') }}" class="btn btn-danger">
+                    <i class="bi bi-arrow-right me-1"></i>Open
+                </a>
+            </div>
+        </div>
+    </div>
 </div>
 
 <!-- Quick Info -->

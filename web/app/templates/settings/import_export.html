@@ -1,0 +1,103 @@
+{% extends 'base.html' %}
+
+{% block title %}Import/Export - GST Billing{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-arrow-left-right me-2"></i>Import/Export Data</h2>
+    <a href="{{ url_for('settings.index') }}" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left me-1"></i>Back to Settings
+    </a>
+</div>
+
+<div class="row">
+    <!-- Export Section -->
+    <div class="col-lg-6 mb-4">
+        <div class="card h-100">
+            <div class="card-header bg-success text-white">
+                <h5 class="mb-0"><i class="bi bi-download me-2"></i>Export Data</h5>
+            </div>
+            <div class="card-body">
+                <p class="text-muted">Download your data as Excel files for backup or external use.</p>
+
+                <div class="d-grid gap-3">
+                    <a href="{{ url_for('settings.export_products') }}" class="btn btn-outline-success">
+                        <i class="bi bi-box-seam me-2"></i>Export Products
+                        <small class="d-block text-muted">Download all products as Excel</small>
+                    </a>
+
+                    <a href="{{ url_for('settings.export_customers') }}" class="btn btn-outline-success">
+                        <i class="bi bi-people me-2"></i>Export Customers
+                        <small class="d-block text-muted">Download all customers as Excel</small>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Import Section -->
+    <div class="col-lg-6 mb-4">
+        <div class="card h-100">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0"><i class="bi bi-upload me-2"></i>Import Data</h5>
+            </div>
+            <div class="card-body">
+                <p class="text-muted">Upload Excel files to bulk import products or customers.</p>
+
+                <!-- Products Import -->
+                <div class="card mb-3">
+                    <div class="card-body">
+                        <h6><i class="bi bi-box-seam me-2"></i>Import Products</h6>
+                        <form action="{{ url_for('settings.import_products') }}" method="POST" enctype="multipart/form-data">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <div class="mb-2">
+                                <input type="file" class="form-control form-control-sm" name="file" accept=".xlsx,.xls" required>
+                            </div>
+                            <div class="d-flex gap-2">
+                                <button type="submit" class="btn btn-primary btn-sm">
+                                    <i class="bi bi-upload me-1"></i>Import
+                                </button>
+                                <a href="{{ url_for('settings.download_template', template_type='products') }}" class="btn btn-outline-secondary btn-sm">
+                                    <i class="bi bi-file-earmark-arrow-down me-1"></i>Download Template
+                                </a>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- Customers Import -->
+                <div class="card">
+                    <div class="card-body">
+                        <h6><i class="bi bi-people me-2"></i>Import Customers</h6>
+                        <form action="{{ url_for('settings.import_customers') }}" method="POST" enctype="multipart/form-data">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <div class="mb-2">
+                                <input type="file" class="form-control form-control-sm" name="file" accept=".xlsx,.xls" required>
+                            </div>
+                            <div class="d-flex gap-2">
+                                <button type="submit" class="btn btn-primary btn-sm">
+                                    <i class="bi bi-upload me-1"></i>Import
+                                </button>
+                                <a href="{{ url_for('settings.download_template', template_type='customers') }}" class="btn btn-outline-secondary btn-sm">
+                                    <i class="bi bi-file-earmark-arrow-down me-1"></i>Download Template
+                                </a>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="alert alert-info">
+    <h6><i class="bi bi-info-circle me-2"></i>Import Tips</h6>
+    <ul class="mb-0">
+        <li>Download the template first to see the required format</li>
+        <li>Products are matched by barcode first, then by name</li>
+        <li>Customers are matched by phone number first, then by name</li>
+        <li>Existing records will be updated, new records will be created</li>
+        <li>Make sure your Excel file has headers in the first row</li>
+    </ul>
+</div>
+{% endblock %}

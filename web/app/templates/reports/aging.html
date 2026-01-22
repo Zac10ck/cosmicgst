@@ -1,0 +1,164 @@
+{% extends 'base.html' %}
+
+{% block title %}Customer Aging Report - GST Billing{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-clock-history me-2"></i>Customer Aging Report</h2>
+    <a href="{{ url_for('reports.index') }}" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left me-1"></i>Back
+    </a>
+</div>
+
+<!-- Summary Cards -->
+<div class="row mb-4">
+    <div class="col-md-3 col-6">
+        <div class="card bg-success text-white">
+            <div class="card-body text-center">
+                <h6 class="card-subtitle mb-2 opacity-75">Current (0-30 days)</h6>
+                <h4 class="card-title mb-0">Rs. {{ "%.2f"|format(totals.current) }}</h4>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3 col-6">
+        <div class="card bg-warning text-dark">
+            <div class="card-body text-center">
+                <h6 class="card-subtitle mb-2 opacity-75">31-60 Days</h6>
+                <h4 class="card-title mb-0">Rs. {{ "%.2f"|format(totals.days_31_60) }}</h4>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3 col-6">
+        <div class="card bg-orange text-white" style="background-color: #fd7e14;">
+            <div class="card-body text-center">
+                <h6 class="card-subtitle mb-2 opacity-75">61-90 Days</h6>
+                <h4 class="card-title mb-0">Rs. {{ "%.2f"|format(totals.days_61_90) }}</h4>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3 col-6">
+        <div class="card bg-danger text-white">
+            <div class="card-body text-center">
+                <h6 class="card-subtitle mb-2 opacity-75">Over 90 Days</h6>
+                <h4 class="card-title mb-0">Rs. {{ "%.2f"|format(totals.over_90) }}</h4>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card bg-primary text-white">
+            <div class="card-body text-center">
+                <h5 class="card-title mb-0">
+                    Total Outstanding: Rs. {{ "%.2f"|format(totals.total) }}
+                    <small class="ms-2">({{ invoice_count }} invoices)</small>
+                </h5>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Customer Summary -->
+<div class="card mb-4">
+    <div class="card-header">
+        <h5 class="mb-0"><i class="bi bi-people me-2"></i>Customer-wise Aging Summary</h5>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Customer</th>
+                        <th class="text-end">Current</th>
+                        <th class="text-end">31-60 Days</th>
+                        <th class="text-end">61-90 Days</th>
+                        <th class="text-end">Over 90 Days</th>
+                        <th class="text-end">Total Due</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for customer in customer_totals %}
+                    <tr>
+                        <td><strong>{{ customer.name }}</strong></td>
+                        <td class="text-end {% if customer.current > 0 %}text-success{% endif %}">
+                            {{ "%.2f"|format(customer.current) if customer.current > 0 else '-' }}
+                        </td>
+                        <td class="text-end {% if customer.days_31_60 > 0 %}text-warning{% endif %}">
+                            {{ "%.2f"|format(customer.days_31_60) if customer.days_31_60 > 0 else '-' }}
+                        </td>
+                        <td class="text-end {% if customer.days_61_90 > 0 %}text-orange{% endif %}" style="{% if customer.days_61_90 > 0 %}color: #fd7e14;{% endif %}">
+                            {{ "%.2f"|format(customer.days_61_90) if customer.days_61_90 > 0 else '-' }}
+                        </td>
+                        <td class="text-end {% if customer.over_90 > 0 %}text-danger{% endif %}">
+                            {{ "%.2f"|format(customer.over_90) if customer.over_90 > 0 else '-' }}
+                        </td>
+                        <td class="text-end"><strong>Rs. {{ "%.2f"|format(customer.total) }}</strong></td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="6" class="text-center text-muted py-4">
+                            <i class="bi bi-check-circle text-success" style="font-size: 2rem;"></i>
+                            <p class="mt-2 mb-0">No outstanding payments</p>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+                {% if customer_totals %}
+                <tfoot class="table-primary">
+                    <tr>
+                        <td><strong>Total</strong></td>
+                        <td class="text-end"><strong>{{ "%.2f"|format(totals.current) }}</strong></td>
+                        <td class="text-end"><strong>{{ "%.2f"|format(totals.days_31_60) }}</strong></td>
+                        <td class="text-end"><strong>{{ "%.2f"|format(totals.days_61_90) }}</strong></td>
+                        <td class="text-end"><strong>{{ "%.2f"|format(totals.over_90) }}</strong></td>
+                        <td class="text-end"><strong>Rs. {{ "%.2f"|format(totals.total) }}</strong></td>
+                    </tr>
+                </tfoot>
+                {% endif %}
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Detailed Invoice List -->
+{% if aging_data.over_90 %}
+<div class="card mb-4">
+    <div class="card-header bg-danger text-white">
+        <h5 class="mb-0"><i class="bi bi-exclamation-triangle me-2"></i>Critical: Over 90 Days Outstanding</h5>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Invoice #</th>
+                        <th>Customer</th>
+                        <th>Invoice Date</th>
+                        <th>Days Old</th>
+                        <th class="text-end">Invoice Amount</th>
+                        <th class="text-end">Balance Due</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in aging_data.over_90 %}
+                    <tr>
+                        <td>
+                            <a href="{{ url_for('billing.view_invoice', id=item.invoice.id) }}">
+                                <strong>{{ item.invoice.invoice_number }}</strong>
+                            </a>
+                        </td>
+                        <td>{{ item.invoice.customer_name or 'Walk-in' }}</td>
+                        <td>{{ item.invoice.invoice_date.strftime('%d %b %Y') if item.invoice.invoice_date else '-' }}</td>
+                        <td><span class="badge bg-danger">{{ item.days_old }} days</span></td>
+                        <td class="text-end">Rs. {{ "%.2f"|format(item.invoice.grand_total) }}</td>
+                        <td class="text-end text-danger"><strong>Rs. {{ "%.2f"|format(item.invoice.balance_due) }}</strong></td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}

@@ -8,7 +8,9 @@
     <p class="text-muted">Generate and export business reports</p>
 </div>
 
-<div class="row g-4">
+<!-- Sales & Revenue Reports -->
+<h5 class="text-muted mb-3"><i class="bi bi-currency-rupee me-2"></i>Sales & Revenue</h5>
+<div class="row g-4 mb-5">
     <!-- Sales Report -->
     <div class="col-md-6 col-lg-4">
         <div class="card h-100">
@@ -25,32 +27,104 @@
         </div>
     </div>
 
-    <!-- GST Report -->
+    <!-- Profit & Loss -->
     <div class="col-md-6 col-lg-4">
         <div class="card h-100">
             <div class="card-body text-center">
                 <div class="mb-3">
-                    <i class="bi bi-percent display-4 text-success"></i>
+                    <i class="bi bi-graph-up-arrow display-4 text-success"></i>
                 </div>
-                <h5 class="card-title">GST Report</h5>
-                <p class="card-text text-muted">Tax summary grouped by GST rate with CGST, SGST, and IGST breakdowns.</p>
-                <a href="{{ url_for('reports.gst_report') }}" class="btn btn-success">
+                <h5 class="card-title">Profit & Loss</h5>
+                <p class="card-text text-muted">Revenue, costs, and gross profit summary for the selected period.</p>
+                <a href="{{ url_for('reports.profit_loss_report') }}" class="btn btn-success">
                     <i class="bi bi-arrow-right me-1"></i>View Report
                 </a>
             </div>
         </div>
     </div>
 
+    <!-- Top Products -->
+    <div class="col-md-6 col-lg-4">
+        <div class="card h-100">
+            <div class="card-body text-center">
+                <div class="mb-3">
+                    <i class="bi bi-trophy display-4 text-warning"></i>
+                </div>
+                <h5 class="card-title">Top Products</h5>
+                <p class="card-text text-muted">Best selling products by revenue and quantity sold.</p>
+                <a href="{{ url_for('reports.top_products_report') }}" class="btn btn-warning">
+                    <i class="bi bi-arrow-right me-1"></i>View Report
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Customer Reports -->
+<h5 class="text-muted mb-3"><i class="bi bi-people me-2"></i>Customer Reports</h5>
+<div class="row g-4 mb-5">
+    <!-- Customer Sales -->
+    <div class="col-md-6 col-lg-4">
+        <div class="card h-100">
+            <div class="card-body text-center">
+                <div class="mb-3">
+                    <i class="bi bi-person-lines-fill display-4 text-info"></i>
+                </div>
+                <h5 class="card-title">Customer Sales</h5>
+                <p class="card-text text-muted">Sales analysis by customer with invoice counts and averages.</p>
+                <a href="{{ url_for('reports.customer_sales_report') }}" class="btn btn-info">
+                    <i class="bi bi-arrow-right me-1"></i>View Report
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Customer Aging -->
+    <div class="col-md-6 col-lg-4">
+        <div class="card h-100">
+            <div class="card-body text-center">
+                <div class="mb-3">
+                    <i class="bi bi-clock-history display-4 text-danger"></i>
+                </div>
+                <h5 class="card-title">Customer Aging</h5>
+                <p class="card-text text-muted">Outstanding receivables grouped by age (30/60/90+ days).</p>
+                <a href="{{ url_for('reports.customer_aging_report') }}" class="btn btn-danger">
+                    <i class="bi bi-arrow-right me-1"></i>View Report
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Inventory & Tax Reports -->
+<h5 class="text-muted mb-3"><i class="bi bi-box-seam me-2"></i>Inventory & Tax</h5>
+<div class="row g-4 mb-5">
     <!-- Stock Report -->
     <div class="col-md-6 col-lg-4">
         <div class="card h-100">
             <div class="card-body text-center">
                 <div class="mb-3">
-                    <i class="bi bi-box-seam display-4 text-warning"></i>
+                    <i class="bi bi-box-seam display-4 text-secondary"></i>
                 </div>
                 <h5 class="card-title">Stock Report</h5>
                 <p class="card-text text-muted">Current inventory levels, low stock alerts, and stock valuation.</p>
-                <a href="{{ url_for('reports.stock_report') }}" class="btn btn-warning">
+                <a href="{{ url_for('reports.stock_report') }}" class="btn btn-secondary">
+                    <i class="bi bi-arrow-right me-1"></i>View Report
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- GST Report -->
+    <div class="col-md-6 col-lg-4">
+        <div class="card h-100">
+            <div class="card-body text-center">
+                <div class="mb-3">
+                    <i class="bi bi-percent display-4 text-purple" style="color: #6f42c1;"></i>
+                </div>
+                <h5 class="card-title">GST Report</h5>
+                <p class="card-text text-muted">Tax summary grouped by GST rate with CGST, SGST, IGST breakdowns.</p>
+                <a href="{{ url_for('reports.gst_report') }}" class="btn" style="background-color: #6f42c1; color: white;">
                     <i class="bi bi-arrow-right me-1"></i>View Report
                 </a>
             </div>
@@ -62,11 +136,11 @@
         <div class="card h-100">
             <div class="card-body text-center">
                 <div class="mb-3">
-                    <i class="bi bi-file-earmark-spreadsheet display-4 text-info"></i>
+                    <i class="bi bi-file-earmark-spreadsheet display-4 text-dark"></i>
                 </div>
                 <h5 class="card-title">GSTR-1 Export</h5>
-                <p class="card-text text-muted">Generate GSTR-1 data for GST return filing. Export to Excel format.</p>
-                <a href="{{ url_for('reports.gstr1_report') }}" class="btn btn-info">
+                <p class="card-text text-muted">Generate GSTR-1 data for GST return filing. Export to Excel.</p>
+                <a href="{{ url_for('reports.gstr1_report') }}" class="btn btn-dark">
                     <i class="bi bi-arrow-right me-1"></i>View Report
                 </a>
             </div>

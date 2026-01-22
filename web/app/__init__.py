@@ -54,6 +54,7 @@ def register_blueprints(app):
     from app.blueprints.credit_notes import credit_notes_bp
     from app.blueprints.reports import reports_bp
     from app.blueprints.settings import settings_bp
+    from app.blueprints.api import api_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(dashboard_bp, url_prefix='/dashboard')
@@ -64,6 +65,7 @@ def register_blueprints(app):
     app.register_blueprint(credit_notes_bp)
     app.register_blueprint(reports_bp)
     app.register_blueprint(settings_bp)
+    app.register_blueprint(api_bp)  # REST API
 
 
 def register_commands(app):

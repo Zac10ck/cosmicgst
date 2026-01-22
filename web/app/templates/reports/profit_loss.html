@@ -1,0 +1,165 @@
+{% extends 'base.html' %}
+
+{% block title %}Profit & Loss Report - GST Billing{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-graph-up-arrow me-2"></i>Profit & Loss Report</h2>
+    <a href="{{ url_for('reports.index') }}" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left me-1"></i>Back
+    </a>
+</div>
+
+<!-- Date Filter -->
+<div class="card mb-4">
+    <div class="card-body">
+        <form method="GET" class="row g-3">
+            <div class="col-md-4">
+                <label class="form-label">Start Date</label>
+                <input type="date" class="form-control" name="start_date" value="{{ start_date.isoformat() }}">
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">End Date</label>
+                <input type="date" class="form-control" name="end_date" value="{{ end_date.isoformat() }}">
+            </div>
+            <div class="col-md-4 d-flex align-items-end">
+                <button type="submit" class="btn btn-primary w-100">
+                    <i class="bi bi-filter me-1"></i>Generate Report
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- P&L Statement -->
+<div class="row">
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0">
+                    <i class="bi bi-file-earmark-bar-graph me-2"></i>
+                    Profit & Loss Statement
+                    <small class="float-end">{{ start_date.strftime('%d %b %Y') }} - {{ end_date.strftime('%d %b %Y') }}</small>
+                </h5>
+            </div>
+            <div class="card-body">
+                <table class="table table-borderless">
+                    <!-- Revenue Section -->
+                    <thead>
+                        <tr class="table-light">
+                            <th colspan="2"><i class="bi bi-arrow-up-circle text-success me-2"></i>REVENUE</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td class="ps-4">Gross Sales</td>
+                            <td class="text-end">Rs. {{ "%.2f"|format(gross_sales) }}</td>
+                        </tr>
+                        <tr>
+                            <td class="ps-4">Less: Discounts</td>
+                            <td class="text-end text-danger">- Rs. {{ "%.2f"|format(total_discount) }}</td>
+                        </tr>
+                        <tr>
+                            <td class="ps-4">Less: Sales Returns</td>
+                            <td class="text-end text-danger">- Rs. {{ "%.2f"|format(returns_value) }}</td>
+                        </tr>
+                        <tr class="fw-bold border-top">
+                            <td class="ps-4">Net Sales</td>
+                            <td class="text-end">Rs. {{ "%.2f"|format(net_sales - returns_value) }}</td>
+                        </tr>
+                    </tbody>
+
+                    <!-- Cost Section -->
+                    <thead>
+                        <tr class="table-light">
+                            <th colspan="2"><i class="bi bi-arrow-down-circle text-danger me-2"></i>COST OF GOODS SOLD</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td class="ps-4">Cost of Products Sold</td>
+                            <td class="text-end">Rs. {{ "%.2f"|format(cogs) }}</td>
+                        </tr>
+                        <tr class="fw-bold border-top">
+                            <td class="ps-4">Total COGS</td>
+                            <td class="text-end">Rs. {{ "%.2f"|format(cogs) }}</td>
+                        </tr>
+                    </tbody>
+
+                    <!-- Gross Profit -->
+                    <thead>
+                        <tr class="{{ 'table-success' if gross_profit >= 0 else 'table-danger' }}">
+                            <th><i class="bi bi-cash-coin me-2"></i>GROSS PROFIT</th>
+                            <th class="text-end fs-5">Rs. {{ "%.2f"|format(gross_profit) }}</th>
+                        </tr>
+                    </thead>
+
+                    <!-- Tax Section -->
+                    <thead>
+                        <tr class="table-light">
+                            <th colspan="2"><i class="bi bi-percent me-2"></i>TAX COLLECTED (Liability)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td class="ps-4">GST Collected (CGST + SGST + IGST)</td>
+                            <td class="text-end">Rs. {{ "%.2f"|format(total_tax_collected) }}</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Summary Cards -->
+    <div class="col-lg-4">
+        <div class="card mb-3 {{ 'bg-success' if gross_profit >= 0 else 'bg-danger' }} text-white">
+            <div class="card-body text-center">
+                <h6 class="card-subtitle mb-2 opacity-75">Gross Profit</h6>
+                <h2 class="card-title mb-0">Rs. {{ "%.2f"|format(gross_profit) }}</h2>
+                {% if net_sales > 0 %}
+                <small class="opacity-75">{{ "%.1f"|format((gross_profit / (net_sales - returns_value)) * 100) }}% margin</small>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="card mb-3">
+            <div class="card-body">
+                <h6 class="text-muted mb-3">Key Metrics</h6>
+                <table class="table table-sm table-borderless mb-0">
+                    <tr>
+                        <td>Total Invoices</td>
+                        <td class="text-end"><strong>{{ invoice_count }}</strong></td>
+                    </tr>
+                    <tr>
+                        <td>Avg Invoice Value</td>
+                        <td class="text-end"><strong>Rs. {{ "%.2f"|format(avg_invoice_value) }}</strong></td>
+                    </tr>
+                    <tr>
+                        <td>Gross Sales</td>
+                        <td class="text-end"><strong>Rs. {{ "%.2f"|format(gross_sales) }}</strong></td>
+                    </tr>
+                    <tr>
+                        <td>Net Sales</td>
+                        <td class="text-end"><strong>Rs. {{ "%.2f"|format(net_sales) }}</strong></td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+
+        <div class="card bg-info text-white">
+            <div class="card-body text-center">
+                <h6 class="card-subtitle mb-2 opacity-75">GST Liability</h6>
+                <h3 class="card-title mb-0">Rs. {{ "%.2f"|format(total_tax_collected) }}</h3>
+                <small class="opacity-75">To be remitted to Govt.</small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="alert alert-info mt-4">
+    <i class="bi bi-info-circle me-2"></i>
+    <strong>Note:</strong> This is a simplified P&L statement. Cost of Goods Sold (COGS) is calculated based on product cost prices where available.
+    For a complete P&L, please consult your accountant and include all operating expenses.
+</div>
+{% endblock %}

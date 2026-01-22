@@ -1,0 +1,53 @@
+{% extends 'base.html' %}
+
+{% block title %}Login - GST Billing{% endblock %}
+
+{% block auth_content %}
+<div class="login-container">
+    <div class="card login-card">
+        <div class="card-header">
+            <i class="bi bi-receipt-cutoff" style="font-size: 3rem;"></i>
+            <h4 class="mt-2">GST Billing</h4>
+            <p class="mb-0 opacity-75">Sign in to your account</p>
+        </div>
+        <div class="card-body p-4">
+            <form method="POST" action="{{ url_for('auth.login') }}">
+                {{ form.hidden_tag() }}
+
+                <div class="mb-3">
+                    <label for="username" class="form-label">
+                        <i class="bi bi-person me-1"></i>Username
+                    </label>
+                    {{ form.username(class="form-control" + (" is-invalid" if form.username.errors else ""), placeholder="Enter username") }}
+                    {% if form.username.errors %}
+                        <div class="invalid-feedback">{{ form.username.errors[0] }}</div>
+                    {% endif %}
+                </div>
+
+                <div class="mb-3">
+                    <label for="password" class="form-label">
+                        <i class="bi bi-lock me-1"></i>Password
+                    </label>
+                    {{ form.password(class="form-control" + (" is-invalid" if form.password.errors else ""), placeholder="Enter password") }}
+                    {% if form.password.errors %}
+                        <div class="invalid-feedback">{{ form.password.errors[0] }}</div>
+                    {% endif %}
+                </div>
+
+                <div class="mb-3 form-check">
+                    {{ form.remember_me(class="form-check-input") }}
+                    <label class="form-check-label" for="remember_me">Remember me</label>
+                </div>
+
+                <div class="d-grid">
+                    {{ form.submit(class="btn btn-primary btn-lg") }}
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <p class="text-center text-muted mt-4">
+        <small>GST Billing v2.0 - Web Edition</small>
+    </p>
+</div>
+{% endblock %}

@@ -1,0 +1,153 @@
+{% extends 'base.html' %}
+
+{% block title %}Email Settings - GST Billing{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-envelope me-2"></i>Email Settings</h2>
+    <a href="{{ url_for('settings.index') }}" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left me-1"></i>Back to Settings
+    </a>
+</div>
+
+<div class="row">
+    <div class="col-lg-8">
+        <form method="POST">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+            <div class="card mb-4">
+                <div class="card-header">
+                    <i class="bi bi-server me-1"></i>SMTP Configuration
+                </div>
+                <div class="card-body">
+                    <div class="row g-3">
+                        <div class="col-md-8">
+                            <label class="form-label">SMTP Server</label>
+                            <input type="text" class="form-control" name="smtp_server"
+                                   value="{{ company.smtp_server if company else '' }}"
+                                   placeholder="smtp.gmail.com">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Port</label>
+                            <input type="number" class="form-control" name="smtp_port"
+                                   value="{{ company.smtp_port if company else 587 }}"
+                                   placeholder="587">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Username</label>
+                            <input type="text" class="form-control" name="smtp_username"
+                                   value="{{ company.smtp_username if company else '' }}"
+                                   placeholder="your-email@gmail.com">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Password</label>
+                            <input type="password" class="form-control" name="smtp_password"
+                                   placeholder="{{ '********' if company and company.smtp_password else 'Enter password' }}">
+                            <small class="text-muted">Leave empty to keep existing password</small>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">From Email</label>
+                            <input type="email" class="form-control" name="email_from"
+                                   value="{{ company.email_from if company else '' }}"
+                                   placeholder="noreply@yourcompany.com">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Security</label>
+                            <div class="form-check mt-2">
+                                <input class="form-check-input" type="checkbox" name="smtp_use_tls" value="1"
+                                       id="smtp_use_tls" {{ 'checked' if not company or company.smtp_use_tls }}>
+                                <label class="form-check-label" for="smtp_use_tls">
+                                    Use TLS (recommended)
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-footer">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-check-circle me-1"></i>Save Settings
+                    </button>
+                </div>
+            </div>
+        </form>
+
+        <!-- Test Email -->
+        <div class="card">
+            <div class="card-header">
+                <i class="bi bi-send me-1"></i>Test Email Configuration
+            </div>
+            <div class="card-body">
+                <form method="POST" action="{{ url_for('settings.test_email') }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <div class="row g-3">
+                        <div class="col-md-8">
+                            <label class="form-label">Send Test Email To</label>
+                            <input type="email" class="form-control" name="test_email"
+                                   placeholder="test@example.com" required>
+                        </div>
+                        <div class="col-md-4 d-flex align-items-end">
+                            <button type="submit" class="btn btn-outline-success w-100"
+                                    {{ 'disabled' if not company or not company.smtp_server }}>
+                                <i class="bi bi-envelope-check me-1"></i>Send Test
+                            </button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-4">
+        <!-- Help -->
+        <div class="card">
+            <div class="card-header">
+                <i class="bi bi-question-circle me-1"></i>Common SMTP Settings
+            </div>
+            <div class="card-body">
+                <h6>Gmail</h6>
+                <ul class="small mb-3">
+                    <li>Server: smtp.gmail.com</li>
+                    <li>Port: 587 (TLS) or 465 (SSL)</li>
+                    <li>Use App Password for 2FA accounts</li>
+                </ul>
+
+                <h6>Outlook/Office 365</h6>
+                <ul class="small mb-3">
+                    <li>Server: smtp.office365.com</li>
+                    <li>Port: 587</li>
+                </ul>
+
+                <h6>Yahoo Mail</h6>
+                <ul class="small mb-0">
+                    <li>Server: smtp.mail.yahoo.com</li>
+                    <li>Port: 587</li>
+                </ul>
+            </div>
+        </div>
+
+        {% if company and company.smtp_server %}
+        <div class="card mt-3">
+            <div class="card-header bg-success text-white">
+                <i class="bi bi-check-circle me-1"></i>Email Configured
+            </div>
+            <div class="card-body">
+                <table class="table table-sm table-borderless mb-0">
+                    <tr>
+                        <td class="text-muted">Server</td>
+                        <td>{{ company.smtp_server }}</td>
+                    </tr>
+                    <tr>
+                        <td class="text-muted">Port</td>
+                        <td>{{ company.smtp_port }}</td>
+                    </tr>
+                    <tr>
+                        <td class="text-muted">TLS</td>
+                        <td>{{ 'Enabled' if company.smtp_use_tls else 'Disabled' }}</td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

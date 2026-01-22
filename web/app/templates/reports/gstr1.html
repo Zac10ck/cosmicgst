@@ -1,0 +1,280 @@
+{% extends 'base.html' %}
+
+{% block title %}GSTR-1 Report - GST Billing{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-file-earmark-spreadsheet me-2"></i>GSTR-1 Report</h2>
+    <div>
+        <a href="{{ url_for('reports.export_gstr1', month=month, year=year) }}" class="btn btn-success me-2">
+            <i class="bi bi-download me-1"></i>Export Excel
+        </a>
+        <a href="{{ url_for('reports.index') }}" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left me-1"></i>Back
+        </a>
+    </div>
+</div>
+
+<!-- Period Selection -->
+<div class="card mb-4">
+    <div class="card-body">
+        <form method="GET" class="row g-3">
+            <div class="col-md-4">
+                <label class="form-label">Month</label>
+                <select class="form-select" name="month">
+                    {% for m in range(1, 13) %}
+                    <option value="{{ m }}" {{ 'selected' if month == m }}>
+                        {{ ['January', 'February', 'March', 'April', 'May', 'June',
+                            'July', 'August', 'September', 'October', 'November', 'December'][m-1] }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">Year</label>
+                <select class="form-select" name="year">
+                    {% for y in range(2020, 2031) %}
+                    <option value="{{ y }}" {{ 'selected' if year == y }}>{{ y }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-4 d-flex align-items-end">
+                <button type="submit" class="btn btn-primary w-100">
+                    <i class="bi bi-filter me-1"></i>Load Data
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Period Info -->
+<div class="alert alert-info mb-4">
+    <i class="bi bi-calendar3 me-2"></i>
+    <strong>Period:</strong> {{ start_date.strftime('%d %B %Y') }} to {{ end_date.strftime('%d %B %Y') }}
+</div>
+
+<!-- Summary Cards -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card bg-primary text-white">
+            <div class="card-body text-center">
+                <h6 class="card-subtitle mb-2 opacity-75">B2B Sales</h6>
+                <h4 class="card-title mb-0">Rs. {{ "%.2f"|format(b2b_total) }}</h4>
+                <small>{{ b2b_invoices|length }} invoice(s)</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-info text-white">
+            <div class="card-body text-center">
+                <h6 class="card-subtitle mb-2 opacity-75">B2C Sales</h6>
+                <h4 class="card-title mb-0">Rs. {{ "%.2f"|format(b2c_total) }}</h4>
+                <small>{{ b2c_invoices|length }} invoice(s)</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-warning">
+            <div class="card-body text-center">
+                <h6 class="card-subtitle mb-2 text-muted">Credit Notes</h6>
+                <h4 class="card-title mb-0">Rs. {{ "%.2f"|format(cn_total) }}</h4>
+                <small>{{ credit_notes|length }} note(s)</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-success text-white">
+            <div class="card-body text-center">
+                <h6 class="card-subtitle mb-2 opacity-75">Total Tax</h6>
+                <h4 class="card-title mb-0">Rs. {{ "%.2f"|format(total_cgst + total_sgst + total_igst) }}</h4>
+                <small>CGST + SGST + IGST</small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Tax Breakdown -->
+<div class="card mb-4">
+    <div class="card-header">
+        <i class="bi bi-pie-chart me-1"></i>Tax Breakdown
+    </div>
+    <div class="card-body">
+        <div class="row">
+            <div class="col-md-4 text-center">
+                <h6 class="text-muted">Taxable Value</h6>
+                <h4>Rs. {{ "%.2f"|format(total_taxable) }}</h4>
+            </div>
+            <div class="col-md-2 text-center">
+                <h6 class="text-muted">CGST</h6>
+                <h5>Rs. {{ "%.2f"|format(total_cgst) }}</h5>
+            </div>
+            <div class="col-md-2 text-center">
+                <h6 class="text-muted">SGST</h6>
+                <h5>Rs. {{ "%.2f"|format(total_sgst) }}</h5>
+            </div>
+            <div class="col-md-2 text-center">
+                <h6 class="text-muted">IGST</h6>
+                <h5>Rs. {{ "%.2f"|format(total_igst) }}</h5>
+            </div>
+            <div class="col-md-2 text-center">
+                <h6 class="text-muted">Net Tax</h6>
+                <h4 class="text-success">Rs. {{ "%.2f"|format(total_cgst + total_sgst + total_igst) }}</h4>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Tabs for B2B, B2C, CDN -->
+<ul class="nav nav-tabs" id="gstr1Tabs" role="tablist">
+    <li class="nav-item" role="presentation">
+        <button class="nav-link active" id="b2b-tab" data-bs-toggle="tab" data-bs-target="#b2b"
+                type="button" role="tab">B2B Invoices ({{ b2b_invoices|length }})</button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="b2c-tab" data-bs-toggle="tab" data-bs-target="#b2c"
+                type="button" role="tab">B2C Invoices ({{ b2c_invoices|length }})</button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="cdn-tab" data-bs-toggle="tab" data-bs-target="#cdn"
+                type="button" role="tab">Credit Notes ({{ credit_notes|length }})</button>
+    </li>
+</ul>
+
+<div class="tab-content" id="gstr1TabsContent">
+    <!-- B2B Tab -->
+    <div class="tab-pane fade show active" id="b2b" role="tabpanel">
+        <div class="card border-top-0 rounded-top-0">
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Invoice #</th>
+                                <th>Date</th>
+                                <th>Customer GSTIN</th>
+                                <th>Customer Name</th>
+                                <th class="text-end">Taxable</th>
+                                <th class="text-end">Tax</th>
+                                <th class="text-end">Total</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for inv in b2b_invoices %}
+                            <tr>
+                                <td>
+                                    <a href="{{ url_for('billing.view_invoice', id=inv.id) }}">
+                                        {{ inv.invoice_number }}
+                                    </a>
+                                </td>
+                                <td>{{ inv.invoice_date.strftime('%d-%m-%Y') }}</td>
+                                <td><code>{{ inv.customer.gstin if inv.customer else '-' }}</code></td>
+                                <td>{{ inv.customer_name }}</td>
+                                <td class="text-end">Rs. {{ "%.2f"|format(inv.subtotal) }}</td>
+                                <td class="text-end">Rs. {{ "%.2f"|format(inv.cgst_total + inv.sgst_total + inv.igst_total) }}</td>
+                                <td class="text-end"><strong>Rs. {{ "%.2f"|format(inv.grand_total) }}</strong></td>
+                            </tr>
+                            {% else %}
+                            <tr>
+                                <td colspan="7" class="text-center text-muted py-4">No B2B invoices</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- B2C Tab -->
+    <div class="tab-pane fade" id="b2c" role="tabpanel">
+        <div class="card border-top-0 rounded-top-0">
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Invoice #</th>
+                                <th>Date</th>
+                                <th>Customer</th>
+                                <th class="text-end">Taxable</th>
+                                <th class="text-end">Tax</th>
+                                <th class="text-end">Total</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for inv in b2c_invoices %}
+                            <tr>
+                                <td>
+                                    <a href="{{ url_for('billing.view_invoice', id=inv.id) }}">
+                                        {{ inv.invoice_number }}
+                                    </a>
+                                </td>
+                                <td>{{ inv.invoice_date.strftime('%d-%m-%Y') }}</td>
+                                <td>{{ inv.customer_name or 'Walk-in Customer' }}</td>
+                                <td class="text-end">Rs. {{ "%.2f"|format(inv.subtotal) }}</td>
+                                <td class="text-end">Rs. {{ "%.2f"|format(inv.cgst_total + inv.sgst_total + inv.igst_total) }}</td>
+                                <td class="text-end"><strong>Rs. {{ "%.2f"|format(inv.grand_total) }}</strong></td>
+                            </tr>
+                            {% else %}
+                            <tr>
+                                <td colspan="6" class="text-center text-muted py-4">No B2C invoices</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- CDN Tab -->
+    <div class="tab-pane fade" id="cdn" role="tabpanel">
+        <div class="card border-top-0 rounded-top-0">
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Credit Note #</th>
+                                <th>Date</th>
+                                <th>Original Invoice</th>
+                                <th>Customer</th>
+                                <th>Reason</th>
+                                <th class="text-end">Amount</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for cn in credit_notes %}
+                            <tr>
+                                <td>
+                                    <a href="{{ url_for('credit_notes.view_credit_note', id=cn.id) }}">
+                                        {{ cn.credit_note_number }}
+                                    </a>
+                                </td>
+                                <td>{{ cn.credit_note_date.strftime('%d-%m-%Y') }}</td>
+                                <td>{{ cn.original_invoice_number or '-' }}</td>
+                                <td>{{ cn.customer_name or '-' }}</td>
+                                <td>
+                                    {% if cn.reason == 'RETURN' %}
+                                    <span class="badge bg-info">Return</span>
+                                    {% elif cn.reason == 'DAMAGE' %}
+                                    <span class="badge bg-warning">Damage</span>
+                                    {% else %}
+                                    <span class="badge bg-secondary">{{ cn.reason }}</span>
+                                    {% endif %}
+                                </td>
+                                <td class="text-end"><strong>Rs. {{ "%.2f"|format(cn.grand_total) }}</strong></td>
+                            </tr>
+                            {% else %}
+                            <tr>
+                                <td colspan="6" class="text-center text-muted py-4">No credit notes</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,173 @@
+{% extends 'base.html' %}
+
+{% block title %}New Bill - GST Billing{% endblock %}
+
+{% block extra_head %}
+<meta name="csrf-token" content="{{ csrf_token() }}">
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h2><i class="bi bi-cart-plus me-2"></i>New Bill</h2>
+    <div>
+        <span class="badge bg-primary fs-6">{{ next_invoice_number }}</span>
+        <span class="badge bg-secondary fs-6 ms-2">{{ today }}</span>
+    </div>
+</div>
+
+<div class="row">
+    <!-- Left Column - Cart -->
+    <div class="col-lg-8">
+        <!-- Product Search -->
+        <div class="card mb-3">
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-md-8">
+                        <label class="form-label">Search Product</label>
+                        <div class="position-relative">
+                            <div class="input-group">
+                                <span class="input-group-text"><i class="bi bi-search"></i></span>
+                                <input type="text" class="form-control" id="product-search"
+                                       placeholder="Search by name or barcode..." autocomplete="off">
+                            </div>
+                            <div id="search-results" class="list-group position-absolute w-100 shadow-sm"
+                                 style="display: none; z-index: 1000; max-height: 300px; overflow-y: auto;"></div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Barcode Scanner</label>
+                        <div class="input-group">
+                            <span class="input-group-text"><i class="bi bi-upc-scan"></i></span>
+                            <input type="text" class="form-control" id="barcode-input"
+                                   placeholder="Scan barcode..." autocomplete="off">
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Cart Items -->
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span><i class="bi bi-cart me-1"></i>Cart Items (<span id="item-count">0</span>)</span>
+                <button type="button" class="btn btn-sm btn-outline-danger" id="clear-cart">
+                    <i class="bi bi-trash me-1"></i>Clear
+                </button>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Product</th>
+                                <th style="width: 80px;">Qty</th>
+                                <th>Unit</th>
+                                <th style="width: 100px;">Rate</th>
+                                <th class="text-end">Taxable</th>
+                                <th class="text-center">GST</th>
+                                <th class="text-end">Total</th>
+                                <th style="width: 50px;"></th>
+                            </tr>
+                        </thead>
+                        <tbody id="cart-items">
+                            <tr>
+                                <td colspan="8" class="text-center text-muted py-4">
+                                    <i class="bi bi-cart" style="font-size: 2rem;"></i>
+                                    <p class="mb-0 mt-2">Cart is empty. Search for products above.</p>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Right Column - Summary & Actions -->
+    <div class="col-lg-4">
+        <!-- Customer Selection -->
+        <div class="card mb-3">
+            <div class="card-header">
+                <i class="bi bi-person me-1"></i>Customer
+            </div>
+            <div class="card-body">
+                <div class="position-relative mb-2">
+                    <input type="text" class="form-control" id="customer-search"
+                           placeholder="Search customer..." autocomplete="off">
+                    <div id="customer-results" class="list-group position-absolute w-100 shadow-sm"
+                         style="display: none; z-index: 1000; max-height: 200px; overflow-y: auto;"></div>
+                </div>
+                <div id="selected-customer-info"></div>
+                <small class="text-muted">Leave empty for Walk-in Customer</small>
+            </div>
+        </div>
+
+        <!-- Bill Summary -->
+        <div class="card mb-3">
+            <div class="card-header">
+                <i class="bi bi-calculator me-1"></i>Bill Summary
+            </div>
+            <div class="card-body">
+                <table class="table table-sm mb-0">
+                    <tr>
+                        <td>Subtotal</td>
+                        <td class="text-end">Rs. <span id="subtotal">0.00</span></td>
+                    </tr>
+                    <tr id="cgst-row">
+                        <td>CGST</td>
+                        <td class="text-end">Rs. <span id="cgst-total">0.00</span></td>
+                    </tr>
+                    <tr id="sgst-row">
+                        <td>SGST</td>
+                        <td class="text-end">Rs. <span id="sgst-total">0.00</span></td>
+                    </tr>
+                    <tr id="igst-row" style="display: none;">
+                        <td>IGST</td>
+                        <td class="text-end">Rs. <span id="igst-total">0.00</span></td>
+                    </tr>
+                    <tr>
+                        <td>Discount</td>
+                        <td class="text-end">
+                            <div class="input-group input-group-sm" style="width: 100px; margin-left: auto;">
+                                <span class="input-group-text">Rs.</span>
+                                <input type="number" class="form-control text-end" id="discount-input"
+                                       value="0" min="0" step="0.01">
+                            </div>
+                        </td>
+                    </tr>
+                    <tr class="table-primary fw-bold">
+                        <td>Grand Total</td>
+                        <td class="text-end fs-5">Rs. <span id="grand-total">0.00</span></td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+
+        <!-- Payment & Submit -->
+        <div class="card">
+            <div class="card-header">
+                <i class="bi bi-credit-card me-1"></i>Payment
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <label class="form-label">Payment Mode</label>
+                    <select class="form-select" id="payment-mode">
+                        {% for value, label in payment_modes %}
+                        <option value="{{ value }}">{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="d-grid gap-2">
+                    <button type="button" class="btn btn-primary btn-lg" id="submit-invoice">
+                        <i class="bi bi-check-circle me-2"></i>Create Invoice
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="{{ url_for('static', filename='js/billing.js') }}"></script>
+{% endblock %}

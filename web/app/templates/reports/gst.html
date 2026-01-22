@@ -1,0 +1,136 @@
+{% extends 'base.html' %}
+
+{% block title %}GST Report - GST Billing{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-percent me-2"></i>GST Report</h2>
+    <a href="{{ url_for('reports.index') }}" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left me-1"></i>Back
+    </a>
+</div>
+
+<!-- Filters -->
+<div class="card mb-4">
+    <div class="card-body">
+        <form method="GET" class="row g-3">
+            <div class="col-md-4">
+                <label class="form-label">Start Date</label>
+                <input type="date" class="form-control" name="start_date"
+                       value="{{ start_date.isoformat() }}">
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">End Date</label>
+                <input type="date" class="form-control" name="end_date"
+                       value="{{ end_date.isoformat() }}">
+            </div>
+            <div class="col-md-4 d-flex align-items-end">
+                <button type="submit" class="btn btn-primary w-100">
+                    <i class="bi bi-filter me-1"></i>Apply Filter
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Summary Cards -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card bg-light">
+            <div class="card-body text-center">
+                <h6 class="card-subtitle mb-2 text-muted">Taxable Value</h6>
+                <h4 class="card-title mb-0">Rs. {{ "%.2f"|format(total_taxable) }}</h4>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-success text-white">
+            <div class="card-body text-center">
+                <h6 class="card-subtitle mb-2 opacity-75">CGST</h6>
+                <h4 class="card-title mb-0">Rs. {{ "%.2f"|format(total_cgst) }}</h4>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-info text-white">
+            <div class="card-body text-center">
+                <h6 class="card-subtitle mb-2 opacity-75">SGST</h6>
+                <h4 class="card-title mb-0">Rs. {{ "%.2f"|format(total_sgst) }}</h4>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-warning">
+            <div class="card-body text-center">
+                <h6 class="card-subtitle mb-2 text-muted">IGST</h6>
+                <h4 class="card-title mb-0">Rs. {{ "%.2f"|format(total_igst) }}</h4>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Total Tax -->
+<div class="alert alert-primary mb-4">
+    <div class="d-flex justify-content-between align-items-center">
+        <span><strong><i class="bi bi-info-circle me-2"></i>Total Tax Collected</strong></span>
+        <span class="fs-4"><strong>Rs. {{ "%.2f"|format(total_tax) }}</strong></span>
+    </div>
+</div>
+
+<!-- GST Summary by Rate -->
+<div class="card">
+    <div class="card-header">
+        <i class="bi bi-table me-1"></i>Tax Summary by GST Rate
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>GST Rate</th>
+                        <th class="text-center">Items</th>
+                        <th class="text-end">Taxable Value</th>
+                        <th class="text-end">CGST</th>
+                        <th class="text-end">SGST</th>
+                        <th class="text-end">IGST</th>
+                        <th class="text-end">Total Tax</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in gst_summary %}
+                    <tr>
+                        <td><span class="badge bg-secondary">{{ "%.0f"|format(row.rate) }}%</span></td>
+                        <td class="text-center">{{ row.count }}</td>
+                        <td class="text-end">Rs. {{ "%.2f"|format(row.taxable_value) }}</td>
+                        <td class="text-end">Rs. {{ "%.2f"|format(row.cgst) }}</td>
+                        <td class="text-end">Rs. {{ "%.2f"|format(row.sgst) }}</td>
+                        <td class="text-end">Rs. {{ "%.2f"|format(row.igst) }}</td>
+                        <td class="text-end"><strong>Rs. {{ "%.2f"|format(row.total_tax) }}</strong></td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="7" class="text-center text-muted py-4">
+                            <i class="bi bi-inbox" style="font-size: 2rem;"></i>
+                            <p class="mt-2 mb-0">No tax data found for the selected period</p>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+                {% if gst_summary %}
+                <tfoot class="table-primary">
+                    <tr>
+                        <td><strong>Total</strong></td>
+                        <td class="text-center"><strong>{{ gst_summary|sum(attribute='count') }}</strong></td>
+                        <td class="text-end"><strong>Rs. {{ "%.2f"|format(total_taxable) }}</strong></td>
+                        <td class="text-end"><strong>Rs. {{ "%.2f"|format(total_cgst) }}</strong></td>
+                        <td class="text-end"><strong>Rs. {{ "%.2f"|format(total_sgst) }}</strong></td>
+                        <td class="text-end"><strong>Rs. {{ "%.2f"|format(total_igst) }}</strong></td>
+                        <td class="text-end"><strong>Rs. {{ "%.2f"|format(total_tax) }}</strong></td>
+                    </tr>
+                </tfoot>
+                {% endif %}
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

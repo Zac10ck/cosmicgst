@@ -1,0 +1,81 @@
+<!-- Sidebar Navigation -->
+<nav id="sidebar" class="col-md-3 col-lg-2 d-md-block bg-light sidebar collapse" style="padding-top: 56px;">
+    <div class="position-sticky pt-3">
+        <ul class="nav flex-column">
+            <li class="nav-item">
+                <a class="nav-link {{ 'active' if request.endpoint and request.endpoint.startswith('dashboard') }}"
+                   href="{{ url_for('dashboard.index') }}">
+                    <i class="bi bi-speedometer2 me-2"></i>Dashboard
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link {{ 'active' if request.endpoint == 'billing.new_bill' }}"
+                   href="{{ url_for('billing.new_bill') }}">
+                    <i class="bi bi-cart-plus me-2"></i>New Bill
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link {{ 'active' if request.endpoint and 'quotation' in request.endpoint }}"
+                   href="{{ url_for('quotations.index') }}">
+                    <i class="bi bi-file-text me-2"></i>Quotations
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link {{ 'active' if request.endpoint and request.endpoint.startswith('billing.') and request.endpoint != 'billing.new_bill' }}"
+                   href="{{ url_for('billing.invoice_list') }}">
+                    <i class="bi bi-receipt me-2"></i>Invoices
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link {{ 'active' if request.endpoint and 'credit_note' in request.endpoint }}"
+                   href="{{ url_for('credit_notes.index') }}">
+                    <i class="bi bi-file-earmark-minus me-2"></i>Credit Notes
+                </a>
+            </li>
+
+            <li class="nav-item mt-3">
+                <small class="nav-link text-muted text-uppercase">Management</small>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link {{ 'active' if request.endpoint and request.endpoint.startswith('products') }}"
+                   href="{{ url_for('products.index') }}">
+                    <i class="bi bi-box-seam me-2"></i>Products
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link {{ 'active' if request.endpoint and request.endpoint.startswith('customers') }}"
+                   href="{{ url_for('customers.index') }}">
+                    <i class="bi bi-people me-2"></i>Customers
+                </a>
+            </li>
+
+            <li class="nav-item mt-3">
+                <small class="nav-link text-muted text-uppercase">Reports</small>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link {{ 'active' if request.endpoint and request.endpoint.startswith('reports') }}"
+                   href="{{ url_for('reports.index') }}">
+                    <i class="bi bi-bar-chart me-2"></i>Reports
+                </a>
+            </li>
+
+            {% if current_user.is_admin() %}
+            <li class="nav-item mt-3">
+                <small class="nav-link text-muted text-uppercase">Admin</small>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link {{ 'active' if request.endpoint and request.endpoint.startswith('auth.manage') }}"
+                   href="{{ url_for('auth.manage_users') }}">
+                    <i class="bi bi-people-fill me-2"></i>Users
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link {{ 'active' if request.endpoint and request.endpoint.startswith('settings') }}"
+                   href="{{ url_for('settings.index') }}">
+                    <i class="bi bi-gear me-2"></i>Settings
+                </a>
+            </li>
+            {% endif %}
+        </ul>
+    </div>
+</nav>

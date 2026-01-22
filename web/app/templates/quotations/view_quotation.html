@@ -1,0 +1,217 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ quotation.quotation_number }} - GST Billing{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>
+        <i class="bi bi-file-text me-2"></i>{{ quotation.quotation_number }}
+        {% if quotation.status == 'DRAFT' %}
+        <span class="badge bg-secondary">Draft</span>
+        {% elif quotation.status == 'SENT' %}
+        <span class="badge bg-info">Sent</span>
+        {% elif quotation.status == 'ACCEPTED' %}
+        <span class="badge bg-success">Accepted</span>
+        {% elif quotation.status == 'REJECTED' %}
+        <span class="badge bg-danger">Rejected</span>
+        {% elif quotation.status == 'EXPIRED' %}
+        <span class="badge bg-warning">Expired</span>
+        {% elif quotation.status == 'CONVERTED' %}
+        <span class="badge bg-primary">Converted</span>
+        {% endif %}
+    </h2>
+    <div>
+        <a href="{{ url_for('quotations.download_pdf', id=quotation.id) }}" class="btn btn-outline-primary me-2">
+            <i class="bi bi-download me-1"></i>Download PDF
+        </a>
+        {% if quotation.can_convert() %}
+        <form action="{{ url_for('quotations.convert_to_invoice', id=quotation.id) }}" method="POST" class="d-inline"
+              onsubmit="return confirm('Convert this quotation to invoice?')">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="btn btn-success me-2">
+                <i class="bi bi-receipt me-1"></i>Convert to Invoice
+            </button>
+        </form>
+        {% endif %}
+        <a href="{{ url_for('quotations.index') }}" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left me-1"></i>Back
+        </a>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-lg-8">
+        <!-- Quotation Details -->
+        <div class="card mb-4">
+            <div class="card-header d-flex justify-content-between">
+                <span>Quotation Details</span>
+                <span>{{ quotation.quotation_date.strftime('%d %B %Y') if quotation.quotation_date else '' }}</span>
+            </div>
+            <div class="card-body">
+                <div class="row mb-4">
+                    <div class="col-md-6">
+                        <h6 class="text-muted">From</h6>
+                        {% if company %}
+                        <strong>{{ company.name }}</strong><br>
+                        {{ company.address }}<br>
+                        {% if company.gstin %}GSTIN: {{ company.gstin }}<br>{% endif %}
+                        {% endif %}
+                    </div>
+                    <div class="col-md-6 text-md-end">
+                        <h6 class="text-muted">To</h6>
+                        <strong>{{ quotation.customer_name or '-' }}</strong>
+                        {% if quotation.customer %}
+                        <br>{{ quotation.customer.address or '' }}
+                        {% if quotation.customer.gstin %}<br>GSTIN: {{ quotation.customer.gstin }}{% endif %}
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- Items Table -->
+                <div class="table-responsive">
+                    <table class="table table-bordered">
+                        <thead class="table-light">
+                            <tr>
+                                <th>#</th>
+                                <th>Product</th>
+                                <th>HSN</th>
+                                <th class="text-center">Qty</th>
+                                <th class="text-end">Rate</th>
+                                <th class="text-end">Taxable</th>
+                                <th class="text-center">GST%</th>
+                                <th class="text-end">Total</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for item in items %}
+                            <tr>
+                                <td>{{ loop.index }}</td>
+                                <td>{{ item.product_name }}</td>
+                                <td>{{ item.hsn_code or '-' }}</td>
+                                <td class="text-center">{{ "%.2f"|format(item.qty) }} {{ item.unit }}</td>
+                                <td class="text-end">{{ "%.2f"|format(item.rate) }}</td>
+                                <td class="text-end">{{ "%.2f"|format(item.taxable_value) }}</td>
+                                <td class="text-center">{{ "%.0f"|format(item.gst_rate) }}%</td>
+                                <td class="text-end"><strong>{{ "%.2f"|format(item.total) }}</strong></td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                        <tfoot>
+                            <tr>
+                                <td colspan="5" class="text-end"><strong>Subtotal</strong></td>
+                                <td class="text-end" colspan="3"><strong>Rs. {{ "%.2f"|format(quotation.subtotal) }}</strong></td>
+                            </tr>
+                            {% if quotation.cgst_total > 0 %}
+                            <tr>
+                                <td colspan="5" class="text-end">CGST</td>
+                                <td class="text-end" colspan="3">Rs. {{ "%.2f"|format(quotation.cgst_total) }}</td>
+                            </tr>
+                            <tr>
+                                <td colspan="5" class="text-end">SGST</td>
+                                <td class="text-end" colspan="3">Rs. {{ "%.2f"|format(quotation.sgst_total) }}</td>
+                            </tr>
+                            {% endif %}
+                            {% if quotation.igst_total > 0 %}
+                            <tr>
+                                <td colspan="5" class="text-end">IGST</td>
+                                <td class="text-end" colspan="3">Rs. {{ "%.2f"|format(quotation.igst_total) }}</td>
+                            </tr>
+                            {% endif %}
+                            {% if quotation.discount > 0 %}
+                            <tr>
+                                <td colspan="5" class="text-end">Discount</td>
+                                <td class="text-end text-danger" colspan="3">- Rs. {{ "%.2f"|format(quotation.discount) }}</td>
+                            </tr>
+                            {% endif %}
+                            <tr class="table-primary">
+                                <td colspan="5" class="text-end"><strong>Grand Total</strong></td>
+                                <td class="text-end" colspan="3"><strong class="fs-5">Rs. {{ "%.2f"|format(quotation.grand_total) }}</strong></td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        {% if quotation.notes %}
+        <div class="card mb-4">
+            <div class="card-header">Notes</div>
+            <div class="card-body">{{ quotation.notes }}</div>
+        </div>
+        {% endif %}
+    </div>
+
+    <div class="col-lg-4">
+        <!-- Quotation Info -->
+        <div class="card mb-4">
+            <div class="card-header">Quotation Details</div>
+            <div class="card-body">
+                <table class="table table-sm table-borderless mb-0">
+                    <tr>
+                        <td class="text-muted">Quotation #</td>
+                        <td><strong>{{ quotation.quotation_number }}</strong></td>
+                    </tr>
+                    <tr>
+                        <td class="text-muted">Date</td>
+                        <td>{{ quotation.quotation_date.strftime('%d %b %Y') if quotation.quotation_date else '-' }}</td>
+                    </tr>
+                    <tr>
+                        <td class="text-muted">Valid Until</td>
+                        <td>
+                            {% if quotation.validity_date %}
+                                {% if quotation.is_expired() %}
+                                <span class="text-danger">{{ quotation.validity_date.strftime('%d %b %Y') }} (Expired)</span>
+                                {% else %}
+                                {{ quotation.validity_date.strftime('%d %b %Y') }}
+                                {% endif %}
+                            {% else %}
+                            -
+                            {% endif %}
+                        </td>
+                    </tr>
+                    <tr>
+                        <td class="text-muted">Items</td>
+                        <td>{{ items|length }}</td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+
+        <!-- Status Update -->
+        {% if quotation.status in ['DRAFT', 'SENT'] %}
+        <div class="card mb-4">
+            <div class="card-header">Update Status</div>
+            <div class="card-body">
+                <form method="POST" action="{{ url_for('quotations.update_status', id=quotation.id) }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <div class="d-grid gap-2">
+                        {% if quotation.status == 'DRAFT' %}
+                        <button type="submit" name="status" value="SENT" class="btn btn-outline-info">
+                            <i class="bi bi-send me-1"></i>Mark as Sent
+                        </button>
+                        {% endif %}
+                        <button type="submit" name="status" value="ACCEPTED" class="btn btn-outline-success">
+                            <i class="bi bi-check me-1"></i>Mark as Accepted
+                        </button>
+                        <button type="submit" name="status" value="REJECTED" class="btn btn-outline-danger">
+                            <i class="bi bi-x me-1"></i>Mark as Rejected
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+        {% endif %}
+
+        {% if quotation.converted_invoice %}
+        <div class="card">
+            <div class="card-header bg-success text-white">Converted to Invoice</div>
+            <div class="card-body">
+                <a href="{{ url_for('billing.view_invoice', id=quotation.converted_invoice.id) }}">
+                    {{ quotation.converted_invoice.invoice_number }}
+                </a>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

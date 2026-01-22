@@ -1,0 +1,110 @@
+{% extends 'base.html' %}
+
+{% block title %}Invoices - GST Billing{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-receipt me-2"></i>Invoices</h2>
+    <a href="{{ url_for('billing.new_bill') }}" class="btn btn-primary">
+        <i class="bi bi-plus-lg me-1"></i>New Bill
+    </a>
+</div>
+
+<!-- Filters -->
+<div class="card mb-4">
+    <div class="card-body">
+        <form method="GET" class="row g-3">
+            <div class="col-md-3">
+                <label class="form-label">From Date</label>
+                <input type="date" class="form-control" name="start_date" value="{{ start_date }}">
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">To Date</label>
+                <input type="date" class="form-control" name="end_date" value="{{ end_date }}">
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">Search</label>
+                <input type="text" class="form-control" name="search" placeholder="Invoice # or Customer..."
+                       value="{{ search }}">
+            </div>
+            <div class="col-md-2 d-flex align-items-end">
+                <button type="submit" class="btn btn-outline-primary w-100">
+                    <i class="bi bi-filter me-1"></i>Filter
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Invoice List -->
+<div class="card">
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle">
+                <thead>
+                    <tr>
+                        <th>Invoice #</th>
+                        <th>Date</th>
+                        <th>Customer</th>
+                        <th class="text-end">Amount</th>
+                        <th class="text-center">Payment</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for invoice in invoices %}
+                    <tr class="{{ 'table-secondary' if invoice.is_cancelled }}">
+                        <td>
+                            <a href="{{ url_for('billing.view_invoice', id=invoice.id) }}">
+                                <strong>{{ invoice.invoice_number }}</strong>
+                            </a>
+                        </td>
+                        <td>{{ invoice.invoice_date.strftime('%d %b %Y') if invoice.invoice_date else '-' }}</td>
+                        <td>{{ invoice.customer_name or 'Walk-in' }}</td>
+                        <td class="text-end">
+                            <strong>Rs. {{ "%.2f"|format(invoice.grand_total) }}</strong>
+                        </td>
+                        <td class="text-center">
+                            <span class="badge bg-{{ 'success' if invoice.payment_mode == 'CASH' else ('info' if invoice.payment_mode == 'UPI' else 'secondary') }}">
+                                {{ invoice.payment_mode }}
+                            </span>
+                        </td>
+                        <td>
+                            {% if invoice.is_cancelled %}
+                            <span class="badge bg-danger">Cancelled</span>
+                            {% elif invoice.payment_status == 'PAID' %}
+                            <span class="badge bg-success">Paid</span>
+                            {% elif invoice.payment_status == 'PARTIAL' %}
+                            <span class="badge bg-warning">Partial</span>
+                            {% else %}
+                            <span class="badge bg-danger">Unpaid</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <a href="{{ url_for('billing.view_invoice', id=invoice.id) }}"
+                               class="btn btn-sm btn-outline-primary" title="View">
+                                <i class="bi bi-eye"></i>
+                            </a>
+                            <a href="#" class="btn btn-sm btn-outline-secondary" title="Print">
+                                <i class="bi bi-printer"></i>
+                            </a>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="7" class="text-center text-muted py-4">
+                            <i class="bi bi-inbox" style="font-size: 2rem;"></i>
+                            <p class="mt-2 mb-0">No invoices found</p>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    <div class="card-footer text-muted">
+        Showing {{ invoices|length }} invoice(s)
+    </div>
+</div>
+{% endblock %}

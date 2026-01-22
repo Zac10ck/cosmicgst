@@ -1,0 +1,463 @@
+/**
+ * Billing Cart Management
+ * Handles product search, cart operations, and invoice creation
+ */
+
+class BillingCart {
+    constructor() {
+        this.items = [];
+        this.customer = null;
+        this.discount = 0;
+        this.totals = {
+            subtotal: 0,
+            cgst_total: 0,
+            sgst_total: 0,
+            igst_total: 0,
+            grand_total: 0
+        };
+
+        this.init();
+    }
+
+    init() {
+        this.bindEvents();
+        this.updateDisplay();
+    }
+
+    bindEvents() {
+        // Product search
+        const searchInput = document.getElementById('product-search');
+        if (searchInput) {
+            searchInput.addEventListener('input', this.debounce((e) => {
+                this.searchProducts(e.target.value);
+            }, 300));
+
+            searchInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    // Try to add by barcode if exact match
+                    this.addByBarcode(e.target.value);
+                }
+            });
+        }
+
+        // Barcode input
+        const barcodeInput = document.getElementById('barcode-input');
+        if (barcodeInput) {
+            barcodeInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    this.addByBarcode(e.target.value);
+                    e.target.value = '';
+                }
+            });
+        }
+
+        // Customer search
+        const customerSearch = document.getElementById('customer-search');
+        if (customerSearch) {
+            customerSearch.addEventListener('input', this.debounce((e) => {
+                this.searchCustomers(e.target.value);
+            }, 300));
+        }
+
+        // Discount input
+        const discountInput = document.getElementById('discount-input');
+        if (discountInput) {
+            discountInput.addEventListener('input', (e) => {
+                this.discount = parseFloat(e.target.value) || 0;
+                this.calculateTotals();
+            });
+        }
+
+        // Submit invoice
+        const submitBtn = document.getElementById('submit-invoice');
+        if (submitBtn) {
+            submitBtn.addEventListener('click', () => this.submitInvoice());
+        }
+
+        // Clear cart
+        const clearBtn = document.getElementById('clear-cart');
+        if (clearBtn) {
+            clearBtn.addEventListener('click', () => this.clearCart());
+        }
+    }
+
+    debounce(func, wait) {
+        let timeout;
+        return function executedFunction(...args) {
+            const later = () => {
+                clearTimeout(timeout);
+                func(...args);
+            };
+            clearTimeout(timeout);
+            timeout = setTimeout(later, wait);
+        };
+    }
+
+    async searchProducts(query) {
+        if (query.length < 1) {
+            this.hideSearchResults();
+            return;
+        }
+
+        try {
+            const response = await fetch(`/billing/api/products/search?q=${encodeURIComponent(query)}`);
+            const products = await response.json();
+            this.showSearchResults(products);
+        } catch (error) {
+            console.error('Error searching products:', error);
+        }
+    }
+
+    showSearchResults(products) {
+        const resultsDiv = document.getElementById('search-results');
+        if (!resultsDiv) return;
+
+        if (products.length === 0) {
+            resultsDiv.innerHTML = '<div class="list-group-item text-muted">No products found</div>';
+        } else {
+            resultsDiv.innerHTML = products.map(p => `
+                <a href="#" class="list-group-item list-group-item-action" onclick="cart.addProduct(${JSON.stringify(p).replace(/"/g, '&quot;')}); return false;">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <strong>${this.escapeHtml(p.name)}</strong>
+                            ${p.barcode ? `<br><small class="text-muted">${this.escapeHtml(p.barcode)}</small>` : ''}
+                        </div>
+                        <div class="text-end">
+                            <strong>Rs. ${p.price.toFixed(2)}</strong>
+                            <br><small class="text-muted">Stock: ${p.stock_qty}</small>
+                        </div>
+                    </div>
+                </a>
+            `).join('');
+        }
+        resultsDiv.style.display = 'block';
+    }
+
+    hideSearchResults() {
+        const resultsDiv = document.getElementById('search-results');
+        if (resultsDiv) {
+            resultsDiv.style.display = 'none';
+        }
+    }
+
+    async addByBarcode(barcode) {
+        if (!barcode) return;
+
+        try {
+            const response = await fetch(`/billing/api/products/barcode/${encodeURIComponent(barcode)}`);
+            if (response.ok) {
+                const product = await response.json();
+                this.addProduct(product);
+                document.getElementById('product-search').value = '';
+                this.hideSearchResults();
+            } else {
+                // Try search instead
+                this.searchProducts(barcode);
+            }
+        } catch (error) {
+            console.error('Error fetching product by barcode:', error);
+        }
+    }
+
+    addProduct(product) {
+        // Check if product already in cart
+        const existingIndex = this.items.findIndex(item => item.product_id === product.id);
+
+        if (existingIndex >= 0) {
+            // Increment quantity
+            this.items[existingIndex].qty += 1;
+        } else {
+            // Add new item
+            this.items.push({
+                product_id: product.id,
+                product_name: product.name,
+                hsn_code: product.hsn_code || '',
+                qty: 1,
+                unit: product.unit || 'NOS',
+                rate: product.price,
+                gst_rate: product.gst_rate || 18
+            });
+        }
+
+        this.calculateTotals();
+        this.hideSearchResults();
+        document.getElementById('product-search').value = '';
+        document.getElementById('product-search').focus();
+    }
+
+    updateQuantity(index, qty) {
+        qty = parseFloat(qty);
+        if (qty <= 0) {
+            this.removeItem(index);
+        } else {
+            this.items[index].qty = qty;
+            this.calculateTotals();
+        }
+    }
+
+    updateRate(index, rate) {
+        rate = parseFloat(rate);
+        if (rate >= 0) {
+            this.items[index].rate = rate;
+            this.calculateTotals();
+        }
+    }
+
+    removeItem(index) {
+        this.items.splice(index, 1);
+        this.calculateTotals();
+    }
+
+    async searchCustomers(query) {
+        if (query.length < 1) {
+            this.hideCustomerResults();
+            return;
+        }
+
+        try {
+            const response = await fetch(`/billing/api/customers/search?q=${encodeURIComponent(query)}`);
+            const customers = await response.json();
+            this.showCustomerResults(customers);
+        } catch (error) {
+            console.error('Error searching customers:', error);
+        }
+    }
+
+    showCustomerResults(customers) {
+        const resultsDiv = document.getElementById('customer-results');
+        if (!resultsDiv) return;
+
+        if (customers.length === 0) {
+            resultsDiv.innerHTML = '<div class="list-group-item text-muted">No customers found</div>';
+        } else {
+            resultsDiv.innerHTML = customers.map(c => `
+                <a href="#" class="list-group-item list-group-item-action" onclick="cart.selectCustomer(${JSON.stringify(c).replace(/"/g, '&quot;')}); return false;">
+                    <strong>${this.escapeHtml(c.name)}</strong>
+                    ${c.phone ? `<br><small class="text-muted">${this.escapeHtml(c.phone)}</small>` : ''}
+                    ${c.gstin ? `<br><small class="text-muted">GSTIN: ${this.escapeHtml(c.gstin)}</small>` : ''}
+                </a>
+            `).join('');
+        }
+        resultsDiv.style.display = 'block';
+    }
+
+    hideCustomerResults() {
+        const resultsDiv = document.getElementById('customer-results');
+        if (resultsDiv) {
+            resultsDiv.style.display = 'none';
+        }
+    }
+
+    selectCustomer(customer) {
+        this.customer = customer;
+        document.getElementById('customer-search').value = customer.name;
+        document.getElementById('selected-customer-info').innerHTML = `
+            <div class="alert alert-info py-2 mb-0">
+                <strong>${this.escapeHtml(customer.name)}</strong>
+                ${customer.phone ? `<br><small>${this.escapeHtml(customer.phone)}</small>` : ''}
+                ${customer.gstin ? `<br><small>GSTIN: ${this.escapeHtml(customer.gstin)}</small>` : ''}
+                <button type="button" class="btn-close btn-sm float-end" onclick="cart.clearCustomer()"></button>
+            </div>
+        `;
+        this.hideCustomerResults();
+        this.calculateTotals(); // Recalculate for state-based GST
+    }
+
+    clearCustomer() {
+        this.customer = null;
+        document.getElementById('customer-search').value = '';
+        document.getElementById('selected-customer-info').innerHTML = '';
+        this.calculateTotals();
+    }
+
+    async calculateTotals() {
+        if (this.items.length === 0) {
+            this.totals = {
+                subtotal: 0,
+                cgst_total: 0,
+                sgst_total: 0,
+                igst_total: 0,
+                grand_total: 0
+            };
+            this.updateDisplay();
+            return;
+        }
+
+        try {
+            const response = await fetch('/billing/api/calculate', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': this.getCSRFToken()
+                },
+                body: JSON.stringify({
+                    items: this.items,
+                    buyer_state_code: this.customer?.state_code || null,
+                    discount: this.discount
+                })
+            });
+
+            const result = await response.json();
+            this.totals = {
+                subtotal: result.subtotal,
+                cgst_total: result.cgst_total,
+                sgst_total: result.sgst_total,
+                igst_total: result.igst_total,
+                grand_total: result.grand_total
+            };
+
+            // Update items with calculated values
+            if (result.items) {
+                this.items = result.items;
+            }
+
+            this.updateDisplay();
+        } catch (error) {
+            console.error('Error calculating totals:', error);
+        }
+    }
+
+    updateDisplay() {
+        // Update cart items table
+        const tbody = document.getElementById('cart-items');
+        if (tbody) {
+            if (this.items.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="8" class="text-center text-muted py-4">
+                            <i class="bi bi-cart" style="font-size: 2rem;"></i>
+                            <p class="mb-0 mt-2">Cart is empty. Search for products above.</p>
+                        </td>
+                    </tr>
+                `;
+            } else {
+                tbody.innerHTML = this.items.map((item, index) => `
+                    <tr>
+                        <td>
+                            <strong>${this.escapeHtml(item.product_name)}</strong>
+                            <br><small class="text-muted">${item.hsn_code || '-'}</small>
+                        </td>
+                        <td>
+                            <input type="number" class="form-control form-control-sm"
+                                   value="${item.qty}" min="0.01" step="0.01"
+                                   onchange="cart.updateQuantity(${index}, this.value)"
+                                   style="width: 70px;">
+                        </td>
+                        <td>${item.unit}</td>
+                        <td>
+                            <input type="number" class="form-control form-control-sm"
+                                   value="${item.rate.toFixed(2)}" min="0" step="0.01"
+                                   onchange="cart.updateRate(${index}, this.value)"
+                                   style="width: 90px;">
+                        </td>
+                        <td class="text-end">${(item.taxable_value || item.qty * item.rate).toFixed(2)}</td>
+                        <td class="text-center">${item.gst_rate}%</td>
+                        <td class="text-end">${(item.total || (item.qty * item.rate * (1 + item.gst_rate/100))).toFixed(2)}</td>
+                        <td>
+                            <button type="button" class="btn btn-sm btn-outline-danger" onclick="cart.removeItem(${index})">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </td>
+                    </tr>
+                `).join('');
+            }
+        }
+
+        // Update totals
+        document.getElementById('subtotal').textContent = this.totals.subtotal.toFixed(2);
+        document.getElementById('cgst-total').textContent = this.totals.cgst_total.toFixed(2);
+        document.getElementById('sgst-total').textContent = this.totals.sgst_total.toFixed(2);
+        document.getElementById('igst-total').textContent = this.totals.igst_total.toFixed(2);
+        document.getElementById('grand-total').textContent = this.totals.grand_total.toFixed(2);
+
+        // Show/hide CGST/SGST vs IGST rows
+        const cgstRow = document.getElementById('cgst-row');
+        const sgstRow = document.getElementById('sgst-row');
+        const igstRow = document.getElementById('igst-row');
+
+        if (this.totals.igst_total > 0) {
+            cgstRow.style.display = 'none';
+            sgstRow.style.display = 'none';
+            igstRow.style.display = '';
+        } else {
+            cgstRow.style.display = '';
+            sgstRow.style.display = '';
+            igstRow.style.display = 'none';
+        }
+
+        // Update item count
+        const itemCount = document.getElementById('item-count');
+        if (itemCount) {
+            itemCount.textContent = this.items.length;
+        }
+    }
+
+    async submitInvoice() {
+        if (this.items.length === 0) {
+            alert('Cart is empty!');
+            return;
+        }
+
+        const paymentMode = document.getElementById('payment-mode').value;
+
+        try {
+            const response = await fetch('/billing/create', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': this.getCSRFToken()
+                },
+                body: JSON.stringify({
+                    items: this.items,
+                    customer_id: this.customer?.id || null,
+                    customer_name: this.customer?.name || 'Walk-in Customer',
+                    buyer_state_code: this.customer?.state_code || null,
+                    discount: this.discount,
+                    payment_mode: paymentMode
+                })
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                // Show success and redirect to invoice
+                alert(result.message);
+                window.location.href = `/billing/invoices/${result.invoice_id}`;
+            } else {
+                alert('Error: ' + (result.error || 'Failed to create invoice'));
+            }
+        } catch (error) {
+            console.error('Error creating invoice:', error);
+            alert('Error creating invoice. Please try again.');
+        }
+    }
+
+    clearCart() {
+        if (this.items.length > 0 && !confirm('Clear all items from cart?')) {
+            return;
+        }
+        this.items = [];
+        this.discount = 0;
+        document.getElementById('discount-input').value = '0';
+        this.calculateTotals();
+    }
+
+    getCSRFToken() {
+        const meta = document.querySelector('meta[name="csrf-token"]');
+        return meta ? meta.getAttribute('content') : '';
+    }
+
+    escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+}
+
+// Initialize cart when DOM is ready
+let cart;
+document.addEventListener('DOMContentLoaded', () => {
+    cart = new BillingCart();
+});

@@ -1,0 +1,113 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ title }} - GST Billing{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-person-plus me-2"></i>{{ title }}</h2>
+    <a href="{{ url_for('customers.index') }}" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left me-1"></i>Back to Customers
+    </a>
+</div>
+
+<div class="row">
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-body">
+                <form method="POST">
+                    {{ form.hidden_tag() }}
+
+                    <div class="row">
+                        <div class="col-md-8 mb-3">
+                            <label for="name" class="form-label">Customer Name *</label>
+                            {{ form.name(class="form-control" + (" is-invalid" if form.name.errors else "")) }}
+                            {% if form.name.errors %}
+                                <div class="invalid-feedback">{{ form.name.errors[0] }}</div>
+                            {% endif %}
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label for="phone" class="form-label">Phone Number</label>
+                            {{ form.phone(class="form-control") }}
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="address" class="form-label">Address</label>
+                        {{ form.address(class="form-control", rows=3) }}
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="gstin" class="form-label">GSTIN</label>
+                            {{ form.gstin(class="form-control text-uppercase" + (" is-invalid" if form.gstin.errors else ""), placeholder="22AAAAA0000A1Z5") }}
+                            {% if form.gstin.errors %}
+                                <div class="invalid-feedback">{{ form.gstin.errors[0] }}</div>
+                            {% endif %}
+                            <small class="text-muted">15-character GST Identification Number</small>
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <label for="state_code" class="form-label">State</label>
+                            {{ form.state_code(class="form-select") }}
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <label for="pin_code" class="form-label">PIN Code</label>
+                            {{ form.pin_code(class="form-control") }}
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-4 mb-3">
+                            <label for="credit_limit" class="form-label">Credit Limit</label>
+                            <div class="input-group">
+                                <span class="input-group-text">Rs.</span>
+                                {{ form.credit_limit(class="form-control") }}
+                            </div>
+                            <small class="text-muted">Maximum credit allowed (0 = no credit)</small>
+                        </div>
+                        <div class="col-md-4 mb-3 d-flex align-items-end">
+                            <div class="form-check">
+                                {{ form.is_active(class="form-check-input") }}
+                                <label class="form-check-label" for="is_active">Active</label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <hr>
+
+                    <div class="d-flex gap-2">
+                        {{ form.submit(class="btn btn-primary") }}
+                        <a href="{{ url_for('customers.index') }}" class="btn btn-outline-secondary">Cancel</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-4">
+        <div class="card">
+            <div class="card-header">
+                <i class="bi bi-info-circle me-1"></i>Tips
+            </div>
+            <div class="card-body">
+                <ul class="mb-0">
+                    <li><strong>GSTIN</strong>: Required for B2B invoices and GST reports</li>
+                    <li><strong>State Code</strong>: Determines CGST/SGST vs IGST calculation</li>
+                    <li><strong>Credit Limit</strong>: Set to 0 for cash-only customers</li>
+                </ul>
+            </div>
+        </div>
+
+        {% if customer and customer.credit_balance != 0 %}
+        <div class="card mt-3">
+            <div class="card-header bg-warning text-dark">
+                <i class="bi bi-exclamation-triangle me-1"></i>Credit Balance
+            </div>
+            <div class="card-body">
+                <h3 class="text-danger">Rs. {{ "%.2f"|format(customer.credit_balance) }}</h3>
+                <p class="mb-0 text-muted">Outstanding credit for this customer</p>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

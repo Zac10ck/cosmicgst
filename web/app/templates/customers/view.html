@@ -1,0 +1,138 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ customer.name }} - GST Billing{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-person me-2"></i>{{ customer.name }}</h2>
+    <div>
+        <a href="{{ url_for('customers.edit', id=customer.id) }}" class="btn btn-primary me-2">
+            <i class="bi bi-pencil me-1"></i>Edit
+        </a>
+        <a href="{{ url_for('customers.index') }}" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left me-1"></i>Back to Customers
+        </a>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-lg-4">
+        <div class="card mb-4">
+            <div class="card-header">
+                <i class="bi bi-info-circle me-1"></i>Customer Details
+            </div>
+            <div class="card-body">
+                <table class="table table-sm table-borderless mb-0">
+                    <tr>
+                        <td class="text-muted">Phone</td>
+                        <td><strong>{{ customer.phone or '-' }}</strong></td>
+                    </tr>
+                    <tr>
+                        <td class="text-muted">GSTIN</td>
+                        <td><code>{{ customer.gstin or '-' }}</code></td>
+                    </tr>
+                    <tr>
+                        <td class="text-muted">State</td>
+                        <td>{{ customer.state_code }}</td>
+                    </tr>
+                    <tr>
+                        <td class="text-muted">PIN Code</td>
+                        <td>{{ customer.pin_code or '-' }}</td>
+                    </tr>
+                    <tr>
+                        <td class="text-muted">Address</td>
+                        <td>{{ customer.address or '-' }}</td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+
+        <div class="card mb-4">
+            <div class="card-header">
+                <i class="bi bi-credit-card me-1"></i>Credit Information
+            </div>
+            <div class="card-body">
+                <div class="row text-center">
+                    <div class="col-6">
+                        <h5 class="text-danger mb-0">Rs. {{ "%.2f"|format(customer.credit_balance) }}</h5>
+                        <small class="text-muted">Current Balance</small>
+                    </div>
+                    <div class="col-6">
+                        <h5 class="mb-0">Rs. {{ "%.2f"|format(customer.credit_limit) }}</h5>
+                        <small class="text-muted">Credit Limit</small>
+                    </div>
+                </div>
+                {% if customer.credit_limit > 0 %}
+                <div class="progress mt-3" style="height: 8px;">
+                    {% set used_percent = (customer.credit_balance / customer.credit_limit * 100) if customer.credit_limit else 0 %}
+                    <div class="progress-bar {{ 'bg-danger' if used_percent > 80 else ('bg-warning' if used_percent > 50 else 'bg-success') }}"
+                         style="width: {{ [used_percent, 100]|min }}%"></div>
+                </div>
+                <small class="text-muted">{{ "%.0f"|format(used_percent) }}% credit used</small>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <i class="bi bi-shield-check me-1"></i>Status
+            </div>
+            <div class="card-body text-center">
+                {% if customer.is_active %}
+                <span class="badge bg-success fs-6">Active</span>
+                {% else %}
+                <span class="badge bg-secondary fs-6">Inactive</span>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span><i class="bi bi-receipt me-1"></i>Recent Invoices</span>
+                <a href="#" class="btn btn-sm btn-outline-primary">View All</a>
+            </div>
+            <div class="card-body">
+                {% if invoices %}
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Invoice #</th>
+                                <th>Date</th>
+                                <th class="text-end">Amount</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for invoice in invoices %}
+                            <tr>
+                                <td><a href="#">{{ invoice.invoice_number }}</a></td>
+                                <td>{{ invoice.invoice_date }}</td>
+                                <td class="text-end">Rs. {{ "%.2f"|format(invoice.grand_total) }}</td>
+                                <td>
+                                    {% if invoice.payment_status == 'PAID' %}
+                                    <span class="badge bg-success">Paid</span>
+                                    {% elif invoice.payment_status == 'PARTIAL' %}
+                                    <span class="badge bg-warning">Partial</span>
+                                    {% else %}
+                                    <span class="badge bg-danger">Unpaid</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center text-muted py-5">
+                    <i class="bi bi-inbox" style="font-size: 3rem;"></i>
+                    <p class="mt-2 mb-0">No invoices found for this customer</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

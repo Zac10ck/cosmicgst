@@ -1,0 +1,122 @@
+{% extends 'base.html' %}
+
+{% block title %}Credit Notes - GST Billing{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-file-earmark-minus me-2"></i>Credit Notes</h2>
+    <a href="{{ url_for('credit_notes.new_credit_note') }}" class="btn btn-primary">
+        <i class="bi bi-plus-lg me-1"></i>New Credit Note
+    </a>
+</div>
+
+<!-- Filters -->
+<div class="card mb-4">
+    <div class="card-body">
+        <form method="GET" class="row g-3">
+            <div class="col-md-4">
+                <label class="form-label">Status</label>
+                <select class="form-select" name="status">
+                    <option value="">All Statuses</option>
+                    {% for s in statuses %}
+                    <option value="{{ s }}" {{ 'selected' if status == s }}>{{ s }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-5">
+                <label class="form-label">Search</label>
+                <input type="text" class="form-control" name="search" placeholder="CN #, Invoice # or Customer..."
+                       value="{{ search }}">
+            </div>
+            <div class="col-md-3 d-flex align-items-end">
+                <button type="submit" class="btn btn-outline-primary w-100">
+                    <i class="bi bi-filter me-1"></i>Filter
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Credit Notes List -->
+<div class="card">
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle">
+                <thead>
+                    <tr>
+                        <th>Credit Note #</th>
+                        <th>Date</th>
+                        <th>Against Invoice</th>
+                        <th>Customer</th>
+                        <th>Reason</th>
+                        <th class="text-end">Amount</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for cn in credit_notes %}
+                    <tr class="{{ 'table-secondary' if cn.status == 'CANCELLED' }}">
+                        <td>
+                            <a href="{{ url_for('credit_notes.view_credit_note', id=cn.id) }}">
+                                <strong>{{ cn.credit_note_number }}</strong>
+                            </a>
+                        </td>
+                        <td>{{ cn.credit_note_date.strftime('%d %b %Y') if cn.credit_note_date else '-' }}</td>
+                        <td>
+                            {% if cn.original_invoice_number %}
+                            <a href="{{ url_for('billing.view_invoice', id=cn.original_invoice_id) if cn.original_invoice_id else '#' }}">
+                                {{ cn.original_invoice_number }}
+                            </a>
+                            {% else %}
+                            -
+                            {% endif %}
+                        </td>
+                        <td>{{ cn.customer_name or '-' }}</td>
+                        <td>
+                            {% if cn.reason == 'RETURN' %}
+                            <span class="badge bg-info">Return</span>
+                            {% elif cn.reason == 'DAMAGE' %}
+                            <span class="badge bg-warning">Damage</span>
+                            {% elif cn.reason == 'PRICE_ADJUSTMENT' %}
+                            <span class="badge bg-secondary">Price Adj.</span>
+                            {% else %}
+                            <span class="badge bg-secondary">{{ cn.reason }}</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-end">
+                            <strong>Rs. {{ "%.2f"|format(cn.grand_total) }}</strong>
+                        </td>
+                        <td>
+                            {% if cn.status == 'ACTIVE' %}
+                            <span class="badge bg-success">Active</span>
+                            {% elif cn.status == 'APPLIED' %}
+                            <span class="badge bg-primary">Applied</span>
+                            {% elif cn.status == 'CANCELLED' %}
+                            <span class="badge bg-danger">Cancelled</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <a href="{{ url_for('credit_notes.view_credit_note', id=cn.id) }}"
+                               class="btn btn-sm btn-outline-primary" title="View">
+                                <i class="bi bi-eye"></i>
+                            </a>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="8" class="text-center text-muted py-4">
+                            <i class="bi bi-inbox" style="font-size: 2rem;"></i>
+                            <p class="mt-2 mb-0">No credit notes found</p>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    <div class="card-footer text-muted">
+        Showing {{ credit_notes|length }} credit note(s)
+    </div>
+</div>
+{% endblock %}

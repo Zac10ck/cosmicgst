@@ -1,0 +1,332 @@
+{% extends 'base.html' %}
+
+{% block title %}New Credit Note - GST Billing{% endblock %}
+
+{% block extra_head %}
+<meta name="csrf-token" content="{{ csrf_token() }}">
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h2><i class="bi bi-file-earmark-minus me-2"></i>New Credit Note</h2>
+    <span class="badge bg-primary fs-6">{{ next_number }}</span>
+</div>
+
+<div class="row">
+    <div class="col-lg-8">
+        <!-- Invoice Reference -->
+        {% if invoice %}
+        <div class="card mb-3">
+            <div class="card-header bg-info text-white">
+                <i class="bi bi-receipt me-1"></i>Against Invoice: {{ invoice.invoice_number }}
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <strong>Customer:</strong> {{ invoice.customer_name }}<br>
+                        <strong>Date:</strong> {{ invoice.invoice_date.strftime('%d %b %Y') if invoice.invoice_date else '-' }}
+                    </div>
+                    <div class="col-md-6 text-md-end">
+                        <strong>Total:</strong> Rs. {{ "%.2f"|format(invoice.grand_total) }}
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Reason -->
+        <div class="card mb-3">
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label class="form-label">Reason *</label>
+                        <select class="form-select" id="reason">
+                            {% for value, label in reasons %}
+                            <option value="{{ value }}">{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Details</label>
+                        <input type="text" class="form-control" id="reason-details" placeholder="Additional details...">
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Items from Invoice -->
+        {% if invoice_items %}
+        <div class="card mb-3">
+            <div class="card-header">
+                <i class="bi bi-list-check me-1"></i>Select Items to Credit
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th style="width: 40px;">
+                                    <input type="checkbox" class="form-check-input" id="select-all">
+                                </th>
+                                <th>Product</th>
+                                <th class="text-center">Invoiced</th>
+                                <th style="width: 100px;">Credit Qty</th>
+                                <th class="text-end">Rate</th>
+                                <th class="text-center">GST</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for item in invoice_items %}
+                            <tr>
+                                <td>
+                                    <input type="checkbox" class="form-check-input item-select"
+                                           data-product-id="{{ item.product_id }}"
+                                           data-product-name="{{ item.product_name }}"
+                                           data-hsn="{{ item.hsn_code }}"
+                                           data-unit="{{ item.unit }}"
+                                           data-rate="{{ item.rate }}"
+                                           data-gst="{{ item.gst_rate }}"
+                                           data-max-qty="{{ item.qty }}">
+                                </td>
+                                <td>
+                                    <strong>{{ item.product_name }}</strong>
+                                    <br><small class="text-muted">{{ item.hsn_code or '-' }}</small>
+                                </td>
+                                <td class="text-center">{{ "%.2f"|format(item.qty) }} {{ item.unit }}</td>
+                                <td>
+                                    <input type="number" class="form-control form-control-sm credit-qty"
+                                           value="{{ item.qty }}" min="0.01" max="{{ item.qty }}" step="0.01" disabled>
+                                </td>
+                                <td class="text-end">{{ "%.2f"|format(item.rate) }}</td>
+                                <td class="text-center">{{ "%.0f"|format(item.gst_rate) }}%</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        {% else %}
+        <!-- Manual Item Entry -->
+        <div class="card mb-3">
+            <div class="card-body">
+                <div class="position-relative">
+                    <label class="form-label">Search Product</label>
+                    <div class="input-group">
+                        <span class="input-group-text"><i class="bi bi-search"></i></span>
+                        <input type="text" class="form-control" id="product-search"
+                               placeholder="Search by name or barcode..." autocomplete="off">
+                    </div>
+                    <div id="search-results" class="list-group position-absolute w-100 shadow-sm"
+                         style="display: none; z-index: 1000;"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <i class="bi bi-list-ul me-1"></i>Items (<span id="item-count">0</span>)
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Product</th>
+                                <th style="width: 80px;">Qty</th>
+                                <th>Unit</th>
+                                <th style="width: 100px;">Rate</th>
+                                <th class="text-end">Taxable</th>
+                                <th class="text-center">GST</th>
+                                <th class="text-end">Total</th>
+                                <th style="width: 50px;"></th>
+                            </tr>
+                        </thead>
+                        <tbody id="cart-items">
+                            <tr>
+                                <td colspan="8" class="text-center text-muted py-4">
+                                    No items added
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <div class="col-lg-4">
+        <!-- Summary -->
+        <div class="card mb-3">
+            <div class="card-header">
+                <i class="bi bi-calculator me-1"></i>Credit Summary
+            </div>
+            <div class="card-body">
+                <table class="table table-sm mb-0">
+                    <tr>
+                        <td>Subtotal</td>
+                        <td class="text-end">Rs. <span id="subtotal">0.00</span></td>
+                    </tr>
+                    <tr id="cgst-row">
+                        <td>CGST</td>
+                        <td class="text-end">Rs. <span id="cgst-total">0.00</span></td>
+                    </tr>
+                    <tr id="sgst-row">
+                        <td>SGST</td>
+                        <td class="text-end">Rs. <span id="sgst-total">0.00</span></td>
+                    </tr>
+                    <tr id="igst-row" style="display: none;">
+                        <td>IGST</td>
+                        <td class="text-end">Rs. <span id="igst-total">0.00</span></td>
+                    </tr>
+                    <tr class="table-warning fw-bold">
+                        <td>Credit Amount</td>
+                        <td class="text-end fs-5">Rs. <span id="grand-total">0.00</span></td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+
+        <!-- Submit -->
+        <div class="card">
+            <div class="card-body">
+                <div class="d-grid">
+                    <button type="button" class="btn btn-warning btn-lg" id="submit-credit-note">
+                        <i class="bi bi-check-circle me-2"></i>Create Credit Note
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+const invoiceId = {{ invoice.id if invoice else 'null' }};
+const invoiceNumber = '{{ invoice.invoice_number if invoice else "" }}';
+const customerId = {{ invoice.customer_id if invoice and invoice.customer_id else 'null' }};
+const customerName = '{{ invoice.customer_name if invoice else "" }}';
+let selectedItems = [];
+
+// Select all checkbox
+document.getElementById('select-all')?.addEventListener('change', function() {
+    document.querySelectorAll('.item-select').forEach(cb => {
+        cb.checked = this.checked;
+        cb.closest('tr').querySelector('.credit-qty').disabled = !this.checked;
+    });
+    updateTotals();
+});
+
+// Individual item selection
+document.querySelectorAll('.item-select').forEach(cb => {
+    cb.addEventListener('change', function() {
+        this.closest('tr').querySelector('.credit-qty').disabled = !this.checked;
+        updateTotals();
+    });
+});
+
+// Qty change
+document.querySelectorAll('.credit-qty').forEach(input => {
+    input.addEventListener('change', updateTotals);
+});
+
+async function updateTotals() {
+    selectedItems = [];
+    document.querySelectorAll('.item-select:checked').forEach(cb => {
+        const row = cb.closest('tr');
+        const qty = parseFloat(row.querySelector('.credit-qty').value) || 0;
+        if (qty > 0) {
+            selectedItems.push({
+                product_id: cb.dataset.productId ? parseInt(cb.dataset.productId) : null,
+                product_name: cb.dataset.productName,
+                hsn_code: cb.dataset.hsn || '',
+                unit: cb.dataset.unit || 'NOS',
+                rate: parseFloat(cb.dataset.rate),
+                gst_rate: parseFloat(cb.dataset.gst),
+                qty: qty
+            });
+        }
+    });
+
+    if (selectedItems.length === 0) {
+        document.getElementById('subtotal').textContent = '0.00';
+        document.getElementById('cgst-total').textContent = '0.00';
+        document.getElementById('sgst-total').textContent = '0.00';
+        document.getElementById('igst-total').textContent = '0.00';
+        document.getElementById('grand-total').textContent = '0.00';
+        return;
+    }
+
+    try {
+        const response = await fetch('/billing/api/calculate', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content
+            },
+            body: JSON.stringify({ items: selectedItems, discount: 0 })
+        });
+        const result = await response.json();
+        document.getElementById('subtotal').textContent = result.subtotal.toFixed(2);
+        document.getElementById('cgst-total').textContent = result.cgst_total.toFixed(2);
+        document.getElementById('sgst-total').textContent = result.sgst_total.toFixed(2);
+        document.getElementById('igst-total').textContent = result.igst_total.toFixed(2);
+        document.getElementById('grand-total').textContent = result.grand_total.toFixed(2);
+
+        if (result.igst_total > 0) {
+            document.getElementById('cgst-row').style.display = 'none';
+            document.getElementById('sgst-row').style.display = 'none';
+            document.getElementById('igst-row').style.display = '';
+        } else {
+            document.getElementById('cgst-row').style.display = '';
+            document.getElementById('sgst-row').style.display = '';
+            document.getElementById('igst-row').style.display = 'none';
+        }
+    } catch (e) {
+        console.error(e);
+    }
+}
+
+document.getElementById('submit-credit-note').addEventListener('click', async function() {
+    if (selectedItems.length === 0) {
+        alert('Please select items to credit');
+        return;
+    }
+
+    const reason = document.getElementById('reason').value;
+    const reasonDetails = document.getElementById('reason-details').value;
+
+    try {
+        const response = await fetch('/credit-notes/create', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content
+            },
+            body: JSON.stringify({
+                items: selectedItems,
+                invoice_id: invoiceId,
+                invoice_number: invoiceNumber,
+                customer_id: customerId,
+                customer_name: customerName,
+                reason: reason,
+                reason_details: reasonDetails
+            })
+        });
+
+        const result = await response.json();
+        if (result.success) {
+            alert(result.message);
+            window.location.href = '/credit-notes/' + result.credit_note_id;
+        } else {
+            alert('Error: ' + (result.error || 'Failed to create credit note'));
+        }
+    } catch (e) {
+        console.error(e);
+        alert('Error creating credit note');
+    }
+});
+</script>
+{% endblock %}

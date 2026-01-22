@@ -1,0 +1,125 @@
+{% extends 'base.html' %}
+
+{% block title %}Settings - GST Billing{% endblock %}
+
+{% block content %}
+<div class="mb-4">
+    <h2><i class="bi bi-gear me-2"></i>Settings</h2>
+    <p class="text-muted">Configure your business settings</p>
+</div>
+
+<div class="row g-4">
+    <!-- Company Settings -->
+    <div class="col-md-6 col-lg-4">
+        <div class="card h-100">
+            <div class="card-body text-center">
+                <div class="mb-3">
+                    <i class="bi bi-building display-4 text-primary"></i>
+                </div>
+                <h5 class="card-title">Company Details</h5>
+                <p class="card-text text-muted">Business name, GSTIN, address, and bank details for invoices.</p>
+                <a href="{{ url_for('settings.company') }}" class="btn btn-primary">
+                    <i class="bi bi-arrow-right me-1"></i>Configure
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Email Settings -->
+    <div class="col-md-6 col-lg-4">
+        <div class="card h-100">
+            <div class="card-body text-center">
+                <div class="mb-3">
+                    <i class="bi bi-envelope display-4 text-success"></i>
+                </div>
+                <h5 class="card-title">Email Configuration</h5>
+                <p class="card-text text-muted">SMTP settings for sending invoices and notifications via email.</p>
+                <a href="{{ url_for('settings.email') }}" class="btn btn-success">
+                    <i class="bi bi-arrow-right me-1"></i>Configure
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Categories -->
+    <div class="col-md-6 col-lg-4">
+        <div class="card h-100">
+            <div class="card-body text-center">
+                <div class="mb-3">
+                    <i class="bi bi-tags display-4 text-warning"></i>
+                </div>
+                <h5 class="card-title">Categories</h5>
+                <p class="card-text text-muted">Manage product categories for better organization.</p>
+                <a href="{{ url_for('settings.categories') }}" class="btn btn-warning">
+                    <i class="bi bi-arrow-right me-1"></i>Manage
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Users -->
+    <div class="col-md-6 col-lg-4">
+        <div class="card h-100">
+            <div class="card-body text-center">
+                <div class="mb-3">
+                    <i class="bi bi-people display-4 text-info"></i>
+                </div>
+                <h5 class="card-title">User Management</h5>
+                <p class="card-text text-muted">Add or manage users who can access the system.</p>
+                <a href="{{ url_for('auth.manage_users') }}" class="btn btn-info">
+                    <i class="bi bi-arrow-right me-1"></i>Manage
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Quick Info -->
+<div class="card mt-4">
+    <div class="card-header">
+        <i class="bi bi-info-circle me-1"></i>Current Configuration
+    </div>
+    <div class="card-body">
+        <div class="row">
+            <div class="col-md-6">
+                <table class="table table-sm table-borderless mb-0">
+                    <tr>
+                        <td class="text-muted">Company Name</td>
+                        <td><strong>{{ company.name if company else 'Not configured' }}</strong></td>
+                    </tr>
+                    <tr>
+                        <td class="text-muted">GSTIN</td>
+                        <td><code>{{ company.gstin if company and company.gstin else 'Not set' }}</code></td>
+                    </tr>
+                    <tr>
+                        <td class="text-muted">State</td>
+                        <td>{{ company.state_code if company else '32' }} - Kerala</td>
+                    </tr>
+                </table>
+            </div>
+            <div class="col-md-6">
+                <table class="table table-sm table-borderless mb-0">
+                    <tr>
+                        <td class="text-muted">Email Status</td>
+                        <td>
+                            {% if company and company.smtp_server %}
+                            <span class="badge bg-success">Configured</span>
+                            {% else %}
+                            <span class="badge bg-warning">Not configured</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    <tr>
+                        <td class="text-muted">Invoice Prefix</td>
+                        <td><code>{{ company.invoice_prefix if company else 'INV' }}</code></td>
+                    </tr>
+                    <tr>
+                        <td class="text-muted">Categories</td>
+                        <td>{{ categories|length }} active</td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

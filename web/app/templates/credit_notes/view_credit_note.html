@@ -1,0 +1,220 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ credit_note.credit_note_number }} - GST Billing{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>
+        <i class="bi bi-file-earmark-minus me-2"></i>{{ credit_note.credit_note_number }}
+        {% if credit_note.status == 'ACTIVE' %}
+        <span class="badge bg-success">Active</span>
+        {% elif credit_note.status == 'APPLIED' %}
+        <span class="badge bg-primary">Applied</span>
+        {% elif credit_note.status == 'CANCELLED' %}
+        <span class="badge bg-danger">Cancelled</span>
+        {% endif %}
+    </h2>
+    <div>
+        <a href="{{ url_for('credit_notes.download_pdf', id=credit_note.id) }}" class="btn btn-outline-primary me-2">
+            <i class="bi bi-download me-1"></i>Download PDF
+        </a>
+        <a href="{{ url_for('credit_notes.index') }}" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left me-1"></i>Back
+        </a>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-lg-8">
+        <!-- Credit Note Details -->
+        <div class="card mb-4">
+            <div class="card-header d-flex justify-content-between">
+                <span>Credit Note Details</span>
+                <span>{{ credit_note.credit_note_date.strftime('%d %B %Y') if credit_note.credit_note_date else '' }}</span>
+            </div>
+            <div class="card-body">
+                <div class="row mb-4">
+                    <div class="col-md-6">
+                        <h6 class="text-muted">From</h6>
+                        {% if company %}
+                        <strong>{{ company.name }}</strong><br>
+                        {{ company.address }}<br>
+                        {% if company.gstin %}GSTIN: {{ company.gstin }}<br>{% endif %}
+                        {% endif %}
+                    </div>
+                    <div class="col-md-6 text-md-end">
+                        <h6 class="text-muted">To</h6>
+                        <strong>{{ credit_note.customer_name or '-' }}</strong>
+                        {% if credit_note.customer %}
+                        <br>{{ credit_note.customer.address or '' }}
+                        {% if credit_note.customer.gstin %}<br>GSTIN: {{ credit_note.customer.gstin }}{% endif %}
+                        {% endif %}
+                    </div>
+                </div>
+
+                {% if credit_note.original_invoice_number %}
+                <div class="alert alert-info mb-4">
+                    <i class="bi bi-info-circle me-1"></i>
+                    <strong>Against Invoice:</strong>
+                    {% if credit_note.original_invoice_id %}
+                    <a href="{{ url_for('billing.view_invoice', id=credit_note.original_invoice_id) }}">
+                        {{ credit_note.original_invoice_number }}
+                    </a>
+                    {% else %}
+                    {{ credit_note.original_invoice_number }}
+                    {% endif %}
+                </div>
+                {% endif %}
+
+                <!-- Items Table -->
+                <div class="table-responsive">
+                    <table class="table table-bordered">
+                        <thead class="table-light">
+                            <tr>
+                                <th>#</th>
+                                <th>Product</th>
+                                <th>HSN</th>
+                                <th class="text-center">Qty</th>
+                                <th class="text-end">Rate</th>
+                                <th class="text-end">Taxable</th>
+                                <th class="text-center">GST%</th>
+                                <th class="text-end">Total</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for item in items %}
+                            <tr>
+                                <td>{{ loop.index }}</td>
+                                <td>{{ item.product_name }}</td>
+                                <td>{{ item.hsn_code or '-' }}</td>
+                                <td class="text-center">{{ "%.2f"|format(item.qty) }} {{ item.unit }}</td>
+                                <td class="text-end">{{ "%.2f"|format(item.rate) }}</td>
+                                <td class="text-end">{{ "%.2f"|format(item.taxable_value) }}</td>
+                                <td class="text-center">{{ "%.0f"|format(item.gst_rate) }}%</td>
+                                <td class="text-end"><strong>{{ "%.2f"|format(item.total) }}</strong></td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                        <tfoot>
+                            <tr>
+                                <td colspan="5" class="text-end"><strong>Subtotal</strong></td>
+                                <td class="text-end" colspan="3"><strong>Rs. {{ "%.2f"|format(credit_note.subtotal) }}</strong></td>
+                            </tr>
+                            {% if credit_note.cgst_total > 0 %}
+                            <tr>
+                                <td colspan="5" class="text-end">CGST</td>
+                                <td class="text-end" colspan="3">Rs. {{ "%.2f"|format(credit_note.cgst_total) }}</td>
+                            </tr>
+                            <tr>
+                                <td colspan="5" class="text-end">SGST</td>
+                                <td class="text-end" colspan="3">Rs. {{ "%.2f"|format(credit_note.sgst_total) }}</td>
+                            </tr>
+                            {% endif %}
+                            {% if credit_note.igst_total > 0 %}
+                            <tr>
+                                <td colspan="5" class="text-end">IGST</td>
+                                <td class="text-end" colspan="3">Rs. {{ "%.2f"|format(credit_note.igst_total) }}</td>
+                            </tr>
+                            {% endif %}
+                            <tr class="table-warning fw-bold">
+                                <td colspan="5" class="text-end"><strong>Credit Amount</strong></td>
+                                <td class="text-end" colspan="3"><strong class="fs-5">Rs. {{ "%.2f"|format(credit_note.grand_total) }}</strong></td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        {% if credit_note.reason_details %}
+        <div class="card mb-4">
+            <div class="card-header">Additional Details</div>
+            <div class="card-body">{{ credit_note.reason_details }}</div>
+        </div>
+        {% endif %}
+    </div>
+
+    <div class="col-lg-4">
+        <!-- Credit Note Info -->
+        <div class="card mb-4">
+            <div class="card-header">Credit Note Details</div>
+            <div class="card-body">
+                <table class="table table-sm table-borderless mb-0">
+                    <tr>
+                        <td class="text-muted">Credit Note #</td>
+                        <td><strong>{{ credit_note.credit_note_number }}</strong></td>
+                    </tr>
+                    <tr>
+                        <td class="text-muted">Date</td>
+                        <td>{{ credit_note.credit_note_date.strftime('%d %b %Y') if credit_note.credit_note_date else '-' }}</td>
+                    </tr>
+                    <tr>
+                        <td class="text-muted">Reason</td>
+                        <td>
+                            {% if credit_note.reason == 'RETURN' %}
+                            <span class="badge bg-info">Return</span>
+                            {% elif credit_note.reason == 'DAMAGE' %}
+                            <span class="badge bg-warning">Damage</span>
+                            {% elif credit_note.reason == 'PRICE_ADJUSTMENT' %}
+                            <span class="badge bg-secondary">Price Adjustment</span>
+                            {% else %}
+                            <span class="badge bg-secondary">{{ credit_note.reason }}</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    <tr>
+                        <td class="text-muted">Items</td>
+                        <td>{{ items|length }}</td>
+                    </tr>
+                    <tr>
+                        <td class="text-muted">Status</td>
+                        <td>
+                            {% if credit_note.status == 'ACTIVE' %}
+                            <span class="badge bg-success">Active</span>
+                            {% elif credit_note.status == 'APPLIED' %}
+                            <span class="badge bg-primary">Applied</span>
+                            {% elif credit_note.status == 'CANCELLED' %}
+                            <span class="badge bg-danger">Cancelled</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+
+        <!-- Actions -->
+        {% if credit_note.status == 'ACTIVE' %}
+        <div class="card mb-4">
+            <div class="card-header">Actions</div>
+            <div class="card-body">
+                <form method="POST" action="{{ url_for('credit_notes.update_status', id=credit_note.id) }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <div class="d-grid gap-2">
+                        <button type="submit" name="status" value="APPLIED" class="btn btn-outline-primary"
+                                onclick="return confirm('Mark this credit note as applied?')">
+                            <i class="bi bi-check-circle me-1"></i>Mark as Applied
+                        </button>
+                        <button type="submit" name="status" value="CANCELLED" class="btn btn-outline-danger"
+                                onclick="return confirm('Are you sure you want to cancel this credit note?')">
+                            <i class="bi bi-x-circle me-1"></i>Cancel Credit Note
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Original Invoice Link -->
+        {% if credit_note.original_invoice %}
+        <div class="card">
+            <div class="card-header bg-info text-white">Original Invoice</div>
+            <div class="card-body">
+                <a href="{{ url_for('billing.view_invoice', id=credit_note.original_invoice.id) }}" class="btn btn-outline-info w-100">
+                    <i class="bi bi-receipt me-1"></i>{{ credit_note.original_invoice.invoice_number }}
+                </a>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,128 @@
+{% extends 'base.html' %}
+
+{% block title %}Quotations - GST Billing{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-file-text me-2"></i>Quotations</h2>
+    <a href="{{ url_for('quotations.new_quotation') }}" class="btn btn-primary">
+        <i class="bi bi-plus-lg me-1"></i>New Quotation
+    </a>
+</div>
+
+<!-- Filters -->
+<div class="card mb-4">
+    <div class="card-body">
+        <form method="GET" class="row g-3">
+            <div class="col-md-4">
+                <label class="form-label">Status</label>
+                <select class="form-select" name="status">
+                    <option value="">All Statuses</option>
+                    {% for s in statuses %}
+                    <option value="{{ s }}" {{ 'selected' if status == s }}>{{ s }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-5">
+                <label class="form-label">Search</label>
+                <input type="text" class="form-control" name="search" placeholder="Quotation # or Customer..."
+                       value="{{ search }}">
+            </div>
+            <div class="col-md-3 d-flex align-items-end">
+                <button type="submit" class="btn btn-outline-primary w-100">
+                    <i class="bi bi-filter me-1"></i>Filter
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Quotation List -->
+<div class="card">
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle">
+                <thead>
+                    <tr>
+                        <th>Quotation #</th>
+                        <th>Date</th>
+                        <th>Valid Until</th>
+                        <th>Customer</th>
+                        <th class="text-end">Amount</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for quotation in quotations %}
+                    <tr>
+                        <td>
+                            <a href="{{ url_for('quotations.view_quotation', id=quotation.id) }}">
+                                <strong>{{ quotation.quotation_number }}</strong>
+                            </a>
+                        </td>
+                        <td>{{ quotation.quotation_date.strftime('%d %b %Y') if quotation.quotation_date else '-' }}</td>
+                        <td>
+                            {% if quotation.validity_date %}
+                                {% if quotation.is_expired() %}
+                                <span class="text-danger">{{ quotation.validity_date.strftime('%d %b %Y') }}</span>
+                                {% else %}
+                                {{ quotation.validity_date.strftime('%d %b %Y') }}
+                                {% endif %}
+                            {% else %}
+                            -
+                            {% endif %}
+                        </td>
+                        <td>{{ quotation.customer_name or '-' }}</td>
+                        <td class="text-end">
+                            <strong>Rs. {{ "%.2f"|format(quotation.grand_total) }}</strong>
+                        </td>
+                        <td>
+                            {% if quotation.status == 'DRAFT' %}
+                            <span class="badge bg-secondary">Draft</span>
+                            {% elif quotation.status == 'SENT' %}
+                            <span class="badge bg-info">Sent</span>
+                            {% elif quotation.status == 'ACCEPTED' %}
+                            <span class="badge bg-success">Accepted</span>
+                            {% elif quotation.status == 'REJECTED' %}
+                            <span class="badge bg-danger">Rejected</span>
+                            {% elif quotation.status == 'EXPIRED' %}
+                            <span class="badge bg-warning">Expired</span>
+                            {% elif quotation.status == 'CONVERTED' %}
+                            <span class="badge bg-primary">Converted</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <a href="{{ url_for('quotations.view_quotation', id=quotation.id) }}"
+                               class="btn btn-sm btn-outline-primary" title="View">
+                                <i class="bi bi-eye"></i>
+                            </a>
+                            {% if quotation.can_convert() %}
+                            <form action="{{ url_for('quotations.convert_to_invoice', id=quotation.id) }}"
+                                  method="POST" class="d-inline"
+                                  onsubmit="return confirm('Convert to invoice?')">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <button type="submit" class="btn btn-sm btn-outline-success" title="Convert to Invoice">
+                                    <i class="bi bi-receipt"></i>
+                                </button>
+                            </form>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="7" class="text-center text-muted py-4">
+                            <i class="bi bi-inbox" style="font-size: 2rem;"></i>
+                            <p class="mt-2 mb-0">No quotations found</p>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    <div class="card-footer text-muted">
+        Showing {{ quotations|length }} quotation(s)
+    </div>
+</div>
+{% endblock %}

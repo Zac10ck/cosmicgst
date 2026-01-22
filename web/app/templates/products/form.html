@@ -1,0 +1,124 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ title }} - GST Billing{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-box-seam me-2"></i>{{ title }}</h2>
+    <a href="{{ url_for('products.index') }}" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left me-1"></i>Back to Products
+    </a>
+</div>
+
+<div class="row">
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-body">
+                <form method="POST">
+                    {{ form.hidden_tag() }}
+
+                    <div class="row">
+                        <div class="col-md-8 mb-3">
+                            <label for="name" class="form-label">Product Name *</label>
+                            {{ form.name(class="form-control" + (" is-invalid" if form.name.errors else "")) }}
+                            {% if form.name.errors %}
+                                <div class="invalid-feedback">{{ form.name.errors[0] }}</div>
+                            {% endif %}
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label for="barcode" class="form-label">Barcode</label>
+                            {{ form.barcode(class="form-control" + (" is-invalid" if form.barcode.errors else "")) }}
+                            {% if form.barcode.errors %}
+                                <div class="invalid-feedback">{{ form.barcode.errors[0] }}</div>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-4 mb-3">
+                            <label for="hsn_code" class="form-label">HSN Code</label>
+                            {{ form.hsn_code(class="form-control") }}
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label for="unit" class="form-label">Unit</label>
+                            {{ form.unit(class="form-select") }}
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label for="category_id" class="form-label">Category</label>
+                            {{ form.category_id(class="form-select") }}
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-4 mb-3">
+                            <label for="price" class="form-label">Selling Price *</label>
+                            <div class="input-group">
+                                <span class="input-group-text">Rs.</span>
+                                {{ form.price(class="form-control" + (" is-invalid" if form.price.errors else "")) }}
+                            </div>
+                            {% if form.price.errors %}
+                                <div class="invalid-feedback d-block">{{ form.price.errors[0] }}</div>
+                            {% endif %}
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label for="purchase_price" class="form-label">Purchase Price</label>
+                            <div class="input-group">
+                                <span class="input-group-text">Rs.</span>
+                                {{ form.purchase_price(class="form-control") }}
+                            </div>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label for="gst_rate" class="form-label">GST Rate</label>
+                            {{ form.gst_rate(class="form-select") }}
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-4 mb-3">
+                            <label for="stock_qty" class="form-label">Stock Quantity</label>
+                            {{ form.stock_qty(class="form-control" + (" is-invalid" if form.stock_qty.errors else "")) }}
+                            {% if form.stock_qty.errors %}
+                                <div class="invalid-feedback">{{ form.stock_qty.errors[0] }}</div>
+                            {% endif %}
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label for="low_stock_alert" class="form-label">Low Stock Alert</label>
+                            {{ form.low_stock_alert(class="form-control") }}
+                            <small class="text-muted">Alert when stock falls below this</small>
+                        </div>
+                        <div class="col-md-4 mb-3 d-flex align-items-end">
+                            <div class="form-check">
+                                {{ form.is_active(class="form-check-input") }}
+                                <label class="form-check-label" for="is_active">Active</label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <hr>
+
+                    <div class="d-flex gap-2">
+                        {{ form.submit(class="btn btn-primary") }}
+                        <a href="{{ url_for('products.index') }}" class="btn btn-outline-secondary">Cancel</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-4">
+        <div class="card">
+            <div class="card-header">
+                <i class="bi bi-info-circle me-1"></i>Tips
+            </div>
+            <div class="card-body">
+                <ul class="mb-0">
+                    <li><strong>Barcode</strong>: Scan or enter the product barcode for quick billing</li>
+                    <li><strong>HSN Code</strong>: Harmonized System Nomenclature code for GST</li>
+                    <li><strong>GST Rate</strong>: Applicable GST percentage for this product</li>
+                    <li><strong>Low Stock Alert</strong>: You'll see a warning when stock falls below this quantity</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

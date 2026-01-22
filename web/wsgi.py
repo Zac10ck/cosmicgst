@@ -22,8 +22,11 @@ from app import create_app
 # Create the application instance
 # The environment is determined by FLASK_ENV environment variable
 # Default is 'development' for local, set to 'production' on PythonAnywhere
-application = create_app()
+app = create_app()
+
+# Alias for compatibility (PythonAnywhere uses 'application')
+application = app
 
 # For local development with `python wsgi.py`
 if __name__ == '__main__':
-    application.run(debug=True, host='0.0.0.0', port=5000)
+    app.run(debug=True, host='0.0.0.0', port=5000)

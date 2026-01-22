@@ -10,7 +10,7 @@ services:
     branch: version-2
     rootDir: web
     buildCommand: "./build.sh"
-    startCommand: "gunicorn wsgi:app"
+    startCommand: "gunicorn wsgi:app --bind 0.0.0.0:$PORT"
     envVars:
       - key: FLASK_ENV
         value: production

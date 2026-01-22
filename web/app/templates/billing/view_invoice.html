@@ -3,14 +3,12 @@
 {% block title %}{{ invoice.invoice_number }} - GST Billing{% endblock %}
 
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-4">
+<!-- Action Buttons - Only visible on screen -->
+<div class="d-flex justify-content-between align-items-center mb-4 no-print">
     <h2>
-        <i class="bi bi-receipt me-2"></i>{{ invoice.invoice_number }}
-        {% if invoice.is_cancelled %}
-        <span class="badge bg-danger">Cancelled</span>
-        {% endif %}
+        <i class="bi bi-receipt me-2"></i>Invoice View
     </h2>
-    <div class="no-print">
+    <div>
         {% if not invoice.is_cancelled %}
         <a href="{{ url_for('billing.download_invoice_pdf', id=invoice.id) }}" class="btn btn-primary me-2">
             <i class="bi bi-file-pdf me-1"></i>Download PDF
@@ -22,208 +20,640 @@
               onsubmit="return confirm('Cancel this invoice? This action cannot be undone.')">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <button type="submit" class="btn btn-outline-danger me-2">
-                <i class="bi bi-x-circle me-1"></i>Cancel Invoice
+                <i class="bi bi-x-circle me-1"></i>Cancel
             </button>
         </form>
         {% endif %}
         <a href="{{ url_for('billing.invoice_list') }}" class="btn btn-outline-secondary">
-            <i class="bi bi-arrow-left me-1"></i>Back to List
+            <i class="bi bi-arrow-left me-1"></i>Back
         </a>
     </div>
 </div>
 
-<div class="row">
-    <div class="col-lg-8">
-        <!-- Invoice Details Card -->
-        <div class="card mb-4">
-            <div class="card-header d-flex justify-content-between">
-                <span>Invoice Details</span>
-                <span>{{ invoice.invoice_date.strftime('%d %B %Y') if invoice.invoice_date else '' }}</span>
+<!-- Professional Invoice Layout -->
+<div class="invoice-container">
+    <div class="invoice-paper">
+        <!-- Cancelled Watermark -->
+        {% if invoice.is_cancelled %}
+        <div class="invoice-cancelled-watermark">CANCELLED</div>
+        {% endif %}
+
+        <!-- Invoice Header -->
+        <div class="invoice-header">
+            <div class="row align-items-center">
+                <div class="col-md-6">
+                    {% if company %}
+                    <h2 class="company-name mb-1">{{ company.name }}</h2>
+                    <p class="company-details mb-0">
+                        {{ company.address }}<br>
+                        {% if company.phone %}Phone: {{ company.phone }}{% endif %}
+                        {% if company.email %} | {{ company.email }}{% endif %}
+                        {% if company.gstin %}<br><strong>GSTIN: {{ company.gstin }}</strong>{% endif %}
+                    </p>
+                    {% else %}
+                    <h2 class="company-name mb-1">Your Company Name</h2>
+                    <p class="company-details mb-0 text-muted">Company details not configured</p>
+                    {% endif %}
+                </div>
+                <div class="col-md-6 text-md-end">
+                    <div class="invoice-info-box">
+                        <div class="invoice-title">TAX INVOICE</div>
+                        <table class="invoice-meta-table">
+                            <tr>
+                                <td>Invoice No:</td>
+                                <td><strong>{{ invoice.invoice_number }}</strong></td>
+                            </tr>
+                            <tr>
+                                <td>Date:</td>
+                                <td>{{ invoice.invoice_date.strftime('%d-%m-%Y') if invoice.invoice_date else '-' }}</td>
+                            </tr>
+                        </table>
+                    </div>
+                </div>
             </div>
-            <div class="card-body">
-                <div class="row mb-4">
-                    <div class="col-md-6">
-                        <h6 class="text-muted">From</h6>
+        </div>
+
+        <!-- Bill To / Ship To Section -->
+        <div class="invoice-parties">
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="party-box bill-from">
+                        <div class="party-label">Bill From</div>
                         {% if company %}
                         <strong>{{ company.name }}</strong><br>
                         {{ company.address }}<br>
                         {% if company.gstin %}GSTIN: {{ company.gstin }}<br>{% endif %}
-                        {% if company.phone %}Phone: {{ company.phone }}{% endif %}
-                        {% else %}
-                        <span class="text-muted">Company details not set</span>
+                        {% if company.state_name %}State: {{ company.state_name }}{% endif %}
                         {% endif %}
                     </div>
-                    <div class="col-md-6 text-md-end">
-                        <h6 class="text-muted">To</h6>
+                </div>
+                <div class="col-md-6">
+                    <div class="party-box bill-to">
+                        <div class="party-label">Bill To</div>
                         <strong>{{ invoice.customer_name or 'Walk-in Customer' }}</strong>
                         {% if invoice.customer %}
                         <br>{{ invoice.customer.address or '' }}
                         {% if invoice.customer.gstin %}<br>GSTIN: {{ invoice.customer.gstin }}{% endif %}
                         {% if invoice.customer.phone %}<br>Phone: {{ invoice.customer.phone }}{% endif %}
+                        {% if invoice.customer.state_name %}<br>State: {{ invoice.customer.state_name }}{% endif %}
                         {% endif %}
                     </div>
                 </div>
+            </div>
+        </div>
 
-                <!-- Items Table -->
-                <div class="table-responsive">
-                    <table class="table table-bordered">
-                        <thead class="table-light">
+        <!-- Items Table -->
+        <div class="invoice-items">
+            <table class="items-table">
+                <thead>
+                    <tr>
+                        <th class="text-center" style="width: 40px;">#</th>
+                        <th>Description</th>
+                        <th class="text-center" style="width: 80px;">HSN</th>
+                        <th class="text-center" style="width: 80px;">Qty</th>
+                        <th class="text-end" style="width: 90px;">Rate</th>
+                        <th class="text-end" style="width: 100px;">Taxable</th>
+                        <th class="text-center" style="width: 60px;">GST%</th>
+                        <th class="text-end" style="width: 80px;">Tax</th>
+                        <th class="text-end" style="width: 100px;">Total</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in items %}
+                    <tr class="{{ 'row-alt' if loop.index is odd else '' }}">
+                        <td class="text-center">{{ loop.index }}</td>
+                        <td>{{ item.product_name }}</td>
+                        <td class="text-center">{{ item.hsn_code or '-' }}</td>
+                        <td class="text-center">{{ "%.2f"|format(item.qty) }} {{ item.unit }}</td>
+                        <td class="text-end">{{ "%.2f"|format(item.rate) }}</td>
+                        <td class="text-end">{{ "%.2f"|format(item.taxable_value) }}</td>
+                        <td class="text-center">{{ "%.0f"|format(item.gst_rate) }}%</td>
+                        <td class="text-end">{{ "%.2f"|format(item.cgst + item.sgst + item.igst) }}</td>
+                        <td class="text-end"><strong>{{ "%.2f"|format(item.total) }}</strong></td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Totals and Tax Summary Row -->
+        <div class="invoice-summary">
+            <div class="row">
+                <!-- Tax Summary -->
+                <div class="col-md-7">
+                    {% if tax_summary %}
+                    <div class="tax-summary-box">
+                        <div class="tax-summary-title">Tax Summary (HSN-wise)</div>
+                        <table class="tax-summary-table">
+                            <thead>
+                                <tr>
+                                    <th>GST Rate</th>
+                                    <th class="text-end">Taxable</th>
+                                    <th class="text-end">CGST</th>
+                                    <th class="text-end">SGST</th>
+                                    <th class="text-end">IGST</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for row in tax_summary %}
+                                <tr>
+                                    <td>{{ row.gst_rate }}%</td>
+                                    <td class="text-end">{{ "%.2f"|format(row.taxable_value) }}</td>
+                                    <td class="text-end">{{ "%.2f"|format(row.cgst) }}</td>
+                                    <td class="text-end">{{ "%.2f"|format(row.sgst) }}</td>
+                                    <td class="text-end">{{ "%.2f"|format(row.igst) }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% endif %}
+
+                    <!-- Bank Details -->
+                    {% if company and company.bank_name %}
+                    <div class="bank-details-box mt-3">
+                        <div class="bank-details-title"><i class="bi bi-bank me-1"></i>Bank Details</div>
+                        <table class="bank-details-table">
                             <tr>
-                                <th>#</th>
-                                <th>Product</th>
-                                <th>HSN</th>
-                                <th class="text-center">Qty</th>
-                                <th class="text-end">Rate</th>
-                                <th class="text-end">Taxable</th>
-                                <th class="text-center">GST%</th>
-                                <th class="text-end">Tax</th>
-                                <th class="text-end">Total</th>
+                                <td>Bank Name:</td>
+                                <td>{{ company.bank_name }}</td>
                             </tr>
-                        </thead>
-                        <tbody>
-                            {% for item in items %}
                             <tr>
-                                <td>{{ loop.index }}</td>
-                                <td>{{ item.product_name }}</td>
-                                <td>{{ item.hsn_code or '-' }}</td>
-                                <td class="text-center">{{ "%.2f"|format(item.qty) }} {{ item.unit }}</td>
-                                <td class="text-end">{{ "%.2f"|format(item.rate) }}</td>
-                                <td class="text-end">{{ "%.2f"|format(item.taxable_value) }}</td>
-                                <td class="text-center">{{ "%.0f"|format(item.gst_rate) }}%</td>
-                                <td class="text-end">{{ "%.2f"|format(item.cgst + item.sgst + item.igst) }}</td>
-                                <td class="text-end"><strong>{{ "%.2f"|format(item.total) }}</strong></td>
+                                <td>Account No:</td>
+                                <td>{{ company.account_number }}</td>
                             </tr>
-                            {% endfor %}
-                        </tbody>
-                        <tfoot>
                             <tr>
-                                <td colspan="5" class="text-end"><strong>Subtotal</strong></td>
-                                <td class="text-end" colspan="4"><strong>Rs. {{ "%.2f"|format(invoice.subtotal) }}</strong></td>
+                                <td>IFSC Code:</td>
+                                <td>{{ company.ifsc_code }}</td>
+                            </tr>
+                            {% if company.upi_id %}
+                            <tr>
+                                <td>UPI ID:</td>
+                                <td>{{ company.upi_id }}</td>
+                            </tr>
+                            {% endif %}
+                        </table>
+                    </div>
+                    {% endif %}
+                </div>
+
+                <!-- Totals Box -->
+                <div class="col-md-5">
+                    <div class="totals-box">
+                        <table class="totals-table">
+                            <tr>
+                                <td>Subtotal</td>
+                                <td class="text-end">Rs. {{ "%.2f"|format(invoice.subtotal) }}</td>
                             </tr>
                             {% if invoice.cgst_total > 0 %}
                             <tr>
-                                <td colspan="5" class="text-end">CGST</td>
-                                <td class="text-end" colspan="4">Rs. {{ "%.2f"|format(invoice.cgst_total) }}</td>
+                                <td>CGST</td>
+                                <td class="text-end">Rs. {{ "%.2f"|format(invoice.cgst_total) }}</td>
                             </tr>
                             <tr>
-                                <td colspan="5" class="text-end">SGST</td>
-                                <td class="text-end" colspan="4">Rs. {{ "%.2f"|format(invoice.sgst_total) }}</td>
+                                <td>SGST</td>
+                                <td class="text-end">Rs. {{ "%.2f"|format(invoice.sgst_total) }}</td>
                             </tr>
                             {% endif %}
                             {% if invoice.igst_total > 0 %}
                             <tr>
-                                <td colspan="5" class="text-end">IGST</td>
-                                <td class="text-end" colspan="4">Rs. {{ "%.2f"|format(invoice.igst_total) }}</td>
+                                <td>IGST</td>
+                                <td class="text-end">Rs. {{ "%.2f"|format(invoice.igst_total) }}</td>
                             </tr>
                             {% endif %}
                             {% if invoice.discount > 0 %}
-                            <tr>
-                                <td colspan="5" class="text-end">Discount</td>
-                                <td class="text-end text-danger" colspan="4">- Rs. {{ "%.2f"|format(invoice.discount) }}</td>
+                            <tr class="discount-row">
+                                <td>Discount</td>
+                                <td class="text-end text-danger">- Rs. {{ "%.2f"|format(invoice.discount) }}</td>
                             </tr>
                             {% endif %}
-                            <tr class="table-primary">
-                                <td colspan="5" class="text-end"><strong>Grand Total</strong></td>
-                                <td class="text-end" colspan="4"><strong class="fs-5">Rs. {{ "%.2f"|format(invoice.grand_total) }}</strong></td>
+                            <tr class="grand-total-row">
+                                <td><strong>GRAND TOTAL</strong></td>
+                                <td class="text-end"><strong>Rs. {{ "%.2f"|format(invoice.grand_total) }}</strong></td>
                             </tr>
-                        </tfoot>
-                    </table>
+                        </table>
+                    </div>
+
+                    <!-- Payment Status -->
+                    <div class="payment-status-box mt-3">
+                        <table class="payment-status-table">
+                            <tr>
+                                <td>Payment Mode:</td>
+                                <td><span class="badge bg-info">{{ invoice.payment_mode }}</span></td>
+                            </tr>
+                            <tr>
+                                <td>Status:</td>
+                                <td>
+                                    {% if invoice.payment_status == 'PAID' %}
+                                    <span class="badge bg-success">PAID</span>
+                                    {% elif invoice.payment_status == 'PARTIAL' %}
+                                    <span class="badge bg-warning">PARTIAL</span>
+                                    {% else %}
+                                    <span class="badge bg-danger">UNPAID</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% if invoice.balance_due > 0 %}
+                            <tr>
+                                <td>Balance Due:</td>
+                                <td class="text-danger"><strong>Rs. {{ "%.2f"|format(invoice.balance_due) }}</strong></td>
+                            </tr>
+                            {% endif %}
+                        </table>
+                    </div>
                 </div>
             </div>
         </div>
 
-        <!-- Tax Summary -->
-        {% if tax_summary %}
-        <div class="card">
-            <div class="card-header">Tax Summary by Rate</div>
-            <div class="card-body">
-                <table class="table table-sm">
-                    <thead>
-                        <tr>
-                            <th>GST Rate</th>
-                            <th class="text-end">Taxable Value</th>
-                            <th class="text-end">CGST</th>
-                            <th class="text-end">SGST</th>
-                            <th class="text-end">IGST</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for row in tax_summary %}
-                        <tr>
-                            <td>{{ row.gst_rate }}%</td>
-                            <td class="text-end">{{ "%.2f"|format(row.taxable_value) }}</td>
-                            <td class="text-end">{{ "%.2f"|format(row.cgst) }}</td>
-                            <td class="text-end">{{ "%.2f"|format(row.sgst) }}</td>
-                            <td class="text-end">{{ "%.2f"|format(row.igst) }}</td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
+        <!-- Invoice Footer -->
+        <div class="invoice-footer">
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="terms-box">
+                        <strong>Terms & Conditions:</strong>
+                        <ol class="terms-list">
+                            <li>Goods once sold will not be taken back.</li>
+                            <li>Interest @18% p.a. will be charged on delayed payments.</li>
+                            <li>Subject to local jurisdiction only.</li>
+                        </ol>
+                    </div>
+                </div>
+                <div class="col-md-6 text-end">
+                    <div class="signature-box">
+                        <p class="mb-4">For {{ company.name if company else 'Company Name' }}</p>
+                        <div class="signature-line"></div>
+                        <p class="signature-label">Authorized Signatory</p>
+                    </div>
+                </div>
             </div>
-        </div>
-        {% endif %}
-    </div>
-
-    <div class="col-lg-4">
-        <!-- Payment Info -->
-        <div class="card mb-4">
-            <div class="card-header">Payment Information</div>
-            <div class="card-body">
-                <table class="table table-sm table-borderless mb-0">
-                    <tr>
-                        <td class="text-muted">Payment Mode</td>
-                        <td><span class="badge bg-info">{{ invoice.payment_mode }}</span></td>
-                    </tr>
-                    <tr>
-                        <td class="text-muted">Status</td>
-                        <td>
-                            {% if invoice.payment_status == 'PAID' %}
-                            <span class="badge bg-success">Paid</span>
-                            {% elif invoice.payment_status == 'PARTIAL' %}
-                            <span class="badge bg-warning">Partial</span>
-                            {% else %}
-                            <span class="badge bg-danger">Unpaid</span>
-                            {% endif %}
-                        </td>
-                    </tr>
-                    <tr>
-                        <td class="text-muted">Amount Paid</td>
-                        <td><strong>Rs. {{ "%.2f"|format(invoice.amount_paid) }}</strong></td>
-                    </tr>
-                    {% if invoice.balance_due > 0 %}
-                    <tr>
-                        <td class="text-muted">Balance Due</td>
-                        <td class="text-danger"><strong>Rs. {{ "%.2f"|format(invoice.balance_due) }}</strong></td>
-                    </tr>
-                    {% endif %}
-                </table>
-            </div>
-        </div>
-
-        <!-- Invoice Meta -->
-        <div class="card">
-            <div class="card-header">Invoice Details</div>
-            <div class="card-body">
-                <table class="table table-sm table-borderless mb-0">
-                    <tr>
-                        <td class="text-muted">Invoice #</td>
-                        <td><strong>{{ invoice.invoice_number }}</strong></td>
-                    </tr>
-                    <tr>
-                        <td class="text-muted">Date</td>
-                        <td>{{ invoice.invoice_date.strftime('%d %b %Y') if invoice.invoice_date else '-' }}</td>
-                    </tr>
-                    <tr>
-                        <td class="text-muted">Created</td>
-                        <td>{{ invoice.created_at.strftime('%d %b %Y, %H:%M') if invoice.created_at else '-' }}</td>
-                    </tr>
-                    <tr>
-                        <td class="text-muted">Items</td>
-                        <td>{{ items|length }}</td>
-                    </tr>
-                </table>
+            <div class="thank-you-message">
+                Thank you for your business!
             </div>
         </div>
     </div>
 </div>
+
+<style>
+/* Professional Invoice Styles */
+.invoice-container {
+    max-width: 900px;
+    margin: 0 auto;
+}
+
+.invoice-paper {
+    background: white;
+    border: 1px solid #dee2e6;
+    border-radius: 8px;
+    padding: 30px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    position: relative;
+}
+
+.invoice-cancelled-watermark {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) rotate(-45deg);
+    font-size: 80px;
+    font-weight: bold;
+    color: rgba(220, 53, 69, 0.15);
+    pointer-events: none;
+    z-index: 1;
+}
+
+/* Header */
+.invoice-header {
+    border-bottom: 3px solid #1a5276;
+    padding-bottom: 20px;
+    margin-bottom: 20px;
+}
+
+.company-name {
+    color: #1a5276;
+    font-weight: 700;
+    font-size: 1.8rem;
+}
+
+.company-details {
+    color: #666;
+    font-size: 0.9rem;
+}
+
+.invoice-info-box {
+    background: #f8f9fa;
+    border: 2px solid #1a5276;
+    border-radius: 8px;
+    padding: 15px;
+    display: inline-block;
+}
+
+.invoice-title {
+    background: #1a5276;
+    color: white;
+    font-size: 1.2rem;
+    font-weight: 700;
+    text-align: center;
+    padding: 8px 20px;
+    margin: -15px -15px 15px -15px;
+    border-radius: 6px 6px 0 0;
+}
+
+.invoice-meta-table {
+    width: 100%;
+}
+
+.invoice-meta-table td {
+    padding: 3px 0;
+}
+
+.invoice-meta-table td:first-child {
+    color: #666;
+    padding-right: 15px;
+}
+
+/* Parties Section */
+.invoice-parties {
+    margin-bottom: 25px;
+}
+
+.party-box {
+    border: 1px solid #dee2e6;
+    border-radius: 6px;
+    padding: 15px;
+    min-height: 120px;
+    font-size: 0.9rem;
+}
+
+.party-label {
+    background: #2980b9;
+    color: white;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    padding: 4px 10px;
+    border-radius: 4px;
+    display: inline-block;
+    margin-bottom: 10px;
+}
+
+.bill-from {
+    background: #f8f9fa;
+}
+
+/* Items Table */
+.invoice-items {
+    margin-bottom: 25px;
+}
+
+.items-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.85rem;
+}
+
+.items-table thead th {
+    background: #1a5276;
+    color: white;
+    padding: 10px 8px;
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 0.75rem;
+    letter-spacing: 0.3px;
+}
+
+.items-table thead th:first-child {
+    border-radius: 6px 0 0 0;
+}
+
+.items-table thead th:last-child {
+    border-radius: 0 6px 0 0;
+}
+
+.items-table tbody td {
+    padding: 10px 8px;
+    border-bottom: 1px solid #e9ecef;
+}
+
+.items-table tbody tr.row-alt {
+    background: #f8f9fa;
+}
+
+.items-table tbody tr:hover {
+    background: #e8f4f8;
+}
+
+/* Tax Summary */
+.tax-summary-box {
+    border: 1px solid #dee2e6;
+    border-radius: 6px;
+    overflow: hidden;
+}
+
+.tax-summary-title {
+    background: #2980b9;
+    color: white;
+    font-size: 0.8rem;
+    font-weight: 600;
+    padding: 8px 12px;
+}
+
+.tax-summary-table {
+    width: 100%;
+    font-size: 0.8rem;
+}
+
+.tax-summary-table th {
+    background: #f8f9fa;
+    padding: 8px;
+    font-weight: 600;
+    font-size: 0.7rem;
+    text-transform: uppercase;
+}
+
+.tax-summary-table td {
+    padding: 6px 8px;
+    border-bottom: 1px solid #e9ecef;
+}
+
+/* Bank Details */
+.bank-details-box {
+    background: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 6px;
+    padding: 12px;
+}
+
+.bank-details-title {
+    font-weight: 600;
+    color: #1a5276;
+    margin-bottom: 8px;
+    font-size: 0.85rem;
+}
+
+.bank-details-table {
+    font-size: 0.8rem;
+}
+
+.bank-details-table td {
+    padding: 2px 0;
+}
+
+.bank-details-table td:first-child {
+    color: #666;
+    width: 100px;
+}
+
+/* Totals Box */
+.totals-box {
+    border: 2px solid #1a5276;
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.totals-table {
+    width: 100%;
+}
+
+.totals-table td {
+    padding: 10px 15px;
+    border-bottom: 1px solid #e9ecef;
+}
+
+.totals-table td:first-child {
+    color: #666;
+}
+
+.grand-total-row {
+    background: #1a5276;
+    color: white;
+}
+
+.grand-total-row td {
+    border-bottom: none;
+    color: white;
+    font-size: 1.1rem;
+}
+
+/* Payment Status */
+.payment-status-box {
+    background: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 6px;
+    padding: 12px;
+}
+
+.payment-status-table {
+    width: 100%;
+    font-size: 0.85rem;
+}
+
+.payment-status-table td {
+    padding: 4px 0;
+}
+
+.payment-status-table td:first-child {
+    color: #666;
+}
+
+/* Footer */
+.invoice-footer {
+    margin-top: 30px;
+    padding-top: 20px;
+    border-top: 1px solid #dee2e6;
+}
+
+.terms-box {
+    font-size: 0.75rem;
+    color: #666;
+}
+
+.terms-list {
+    margin: 5px 0 0 0;
+    padding-left: 15px;
+}
+
+.terms-list li {
+    margin-bottom: 2px;
+}
+
+.signature-box {
+    margin-top: 20px;
+}
+
+.signature-line {
+    border-bottom: 1px solid #333;
+    width: 180px;
+    margin-left: auto;
+    margin-bottom: 5px;
+}
+
+.signature-label {
+    font-size: 0.8rem;
+    color: #666;
+    margin-bottom: 0;
+}
+
+.thank-you-message {
+    text-align: center;
+    margin-top: 25px;
+    padding-top: 15px;
+    border-top: 1px dashed #dee2e6;
+    color: #1a5276;
+    font-weight: 600;
+    font-size: 1rem;
+}
+
+/* Print Styles */
+@media print {
+    .no-print {
+        display: none !important;
+    }
+
+    body {
+        background: white !important;
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+    }
+
+    .invoice-container {
+        max-width: 100%;
+        margin: 0;
+    }
+
+    .invoice-paper {
+        border: none;
+        box-shadow: none;
+        padding: 0;
+    }
+
+    .items-table thead th {
+        background: #1a5276 !important;
+        color: white !important;
+        -webkit-print-color-adjust: exact !important;
+    }
+
+    .grand-total-row {
+        background: #1a5276 !important;
+        color: white !important;
+        -webkit-print-color-adjust: exact !important;
+    }
+
+    .tax-summary-title {
+        background: #2980b9 !important;
+        color: white !important;
+        -webkit-print-color-adjust: exact !important;
+    }
+
+    .party-label {
+        background: #2980b9 !important;
+        color: white !important;
+        -webkit-print-color-adjust: exact !important;
+    }
+
+    .row-alt {
+        background: #f8f9fa !important;
+        -webkit-print-color-adjust: exact !important;
+    }
+}
+</style>
 {% endblock %}

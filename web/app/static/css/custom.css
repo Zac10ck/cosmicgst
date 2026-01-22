@@ -175,18 +175,26 @@
 
 /* Print styles */
 @media print {
+    /* Hide navigation and action elements */
     .sidebar,
     .navbar,
     .btn,
     .no-print,
-    #sidebar {
+    #sidebar,
+    .breadcrumb,
+    .alert {
         display: none !important;
     }
 
+    /* Reset body and page */
     body {
         background: white !important;
+        font-size: 11pt !important;
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
     }
 
+    /* Full width main content */
     main {
         margin: 0 !important;
         padding: 0 !important;
@@ -195,21 +203,77 @@
         margin-left: 0 !important;
     }
 
+    /* Card adjustments */
     .card {
         border: 1px solid #ddd !important;
         box-shadow: none !important;
+        break-inside: avoid;
     }
 
+    /* Table styles for print */
     .table {
-        font-size: 12px;
+        font-size: 10pt;
     }
 
+    .table th {
+        background-color: #f8f9fa !important;
+        -webkit-print-color-adjust: exact !important;
+    }
+
+    /* Link styles */
     a {
         text-decoration: none !important;
         color: black !important;
     }
 
-    .d-flex {
-        display: block !important;
+    /* Invoice-specific print styles */
+    .invoice-container {
+        max-width: 100% !important;
+        margin: 0 !important;
+    }
+
+    .invoice-paper {
+        border: none !important;
+        box-shadow: none !important;
+        padding: 15px !important;
+    }
+
+    /* Preserve colors in headers */
+    .items-table thead th,
+    .invoice-title,
+    .grand-total-row,
+    .tax-summary-title,
+    .party-label {
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+    }
+
+    /* Page breaks */
+    .invoice-header {
+        break-after: avoid;
+    }
+
+    .invoice-items {
+        break-inside: avoid;
+    }
+
+    .invoice-footer {
+        break-before: avoid;
+    }
+
+    /* Signature line visibility */
+    .signature-line {
+        border-bottom: 1px solid #333 !important;
+    }
+
+    /* Row display fix */
+    .row {
+        display: flex !important;
+        flex-wrap: wrap !important;
+    }
+
+    /* Badge visibility */
+    .badge {
+        border: 1px solid currentColor !important;
     }
 }

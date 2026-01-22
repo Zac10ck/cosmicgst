@@ -1,15 +1,18 @@
-"""PDF Generator for invoices, quotations, and credit notes using ReportLab"""
+"""Professional PDF Generator for GST Invoices, Quotations, and Credit Notes"""
 from io import BytesIO
 from datetime import date
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import mm
-from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+from reportlab.platypus import (
+    SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer,
+    HRFlowable, KeepTogether
+)
 from reportlab.lib.enums import TA_CENTER, TA_RIGHT, TA_LEFT
 
 
-# State code to name mapping
+# State code to name mapping (India)
 STATE_CODES = {
     "01": "Jammu & Kashmir", "02": "Himachal Pradesh", "03": "Punjab",
     "04": "Chandigarh", "05": "Uttarakhand", "06": "Haryana",
@@ -19,44 +22,62 @@ STATE_CODES = {
     "16": "Tripura", "17": "Meghalaya", "18": "Assam",
     "19": "West Bengal", "20": "Jharkhand", "21": "Odisha",
     "22": "Chhattisgarh", "23": "Madhya Pradesh", "24": "Gujarat",
-    "26": "Dadra & Nagar Haveli", "27": "Maharashtra",
+    "26": "Dadra & Nagar Haveli", "27": "Maharashtra", "28": "Andhra Pradesh",
     "29": "Karnataka", "30": "Goa", "31": "Lakshadweep",
     "32": "Kerala", "33": "Tamil Nadu", "34": "Puducherry",
-    "35": "Andaman & Nicobar", "36": "Telangana", "37": "Andhra Pradesh",
+    "35": "Andaman & Nicobar", "36": "Telangana", "37": "Andhra Pradesh (New)",
     "38": "Ladakh"
 }
 
-# Color scheme
+# Professional Color Scheme
 COLORS = {
-    'primary': colors.HexColor('#1a5276'),
-    'secondary': colors.HexColor('#2980b9'),
-    'light_bg': colors.HexColor('#f8f9fa'),
-    'border': colors.HexColor('#dee2e6'),
-    'text_dark': colors.HexColor('#2c3e50'),
-    'header_bg': colors.HexColor('#1a5276'),
-    'row_alt': colors.HexColor('#f1f4f8'),
+    'primary': colors.HexColor('#1a5276'),        # Dark blue - headers
+    'primary_light': colors.HexColor('#2980b9'),  # Medium blue - accents
+    'success': colors.HexColor('#27ae60'),        # Green
+    'warning': colors.HexColor('#e67e22'),        # Orange
+    'danger': colors.HexColor('#c0392b'),         # Red
+    'light_bg': colors.HexColor('#f8f9fa'),       # Light gray background
+    'lighter_bg': colors.HexColor('#f1f4f8'),     # Alternating rows
+    'border': colors.HexColor('#dee2e6'),         # Borders
+    'border_dark': colors.HexColor('#adb5bd'),    # Darker borders
+    'text_dark': colors.HexColor('#2c3e50'),      # Primary text
+    'text_muted': colors.HexColor('#6c757d'),     # Secondary text
+    'white': colors.white,
+    'total_bg': colors.HexColor('#e8f4f8'),       # Total row background
 }
 
 
 def get_state_name(state_code):
     """Get state name from code"""
-    return STATE_CODES.get(state_code, f"State {state_code}")
+    return STATE_CODES.get(str(state_code), f"State {state_code}")
 
 
 def format_currency(amount):
-    """Format amount as Indian currency"""
+    """Format amount as Indian currency with proper formatting"""
+    if amount is None:
+        amount = 0
     return f"Rs. {amount:,.2f}"
 
 
+def format_inr(amount):
+    """Format with Rupee symbol"""
+    if amount is None:
+        amount = 0
+    return f"₹ {amount:,.2f}"
+
+
 def number_to_words_indian(num):
-    """Convert number to words (Indian system)"""
+    """Convert number to words using Indian numbering system"""
+    if num is None:
+        num = 0
+
     ones = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine',
             'Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen',
             'Seventeen', 'Eighteen', 'Nineteen']
     tens = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety']
 
     if num == 0:
-        return 'Zero'
+        return 'Zero Rupees Only'
 
     def words(n):
         if n < 20:
@@ -64,7 +85,7 @@ def number_to_words_indian(num):
         elif n < 100:
             return tens[n // 10] + ('' if n % 10 == 0 else ' ' + ones[n % 10])
         elif n < 1000:
-            return ones[n // 100] + ' Hundred' + ('' if n % 100 == 0 else ' ' + words(n % 100))
+            return ones[n // 100] + ' Hundred' + ('' if n % 100 == 0 else ' and ' + words(n % 100))
         elif n < 100000:
             return words(n // 1000) + ' Thousand' + ('' if n % 1000 == 0 else ' ' + words(n % 1000))
         elif n < 10000000:
@@ -83,67 +104,143 @@ def number_to_words_indian(num):
 
 
 class PDFGenerator:
-    """Generate PDF documents for invoices, quotations, and credit notes"""
+    """Professional PDF Generator for GST-compliant documents"""
 
     def __init__(self):
         self.styles = getSampleStyleSheet()
         self._setup_styles()
         self.page_width, self.page_height = A4
-        self.margin = 15 * mm
+        self.margin = 12 * mm
+        self.content_width = self.page_width - (2 * self.margin)
 
     def _setup_styles(self):
         """Set up custom paragraph styles"""
+        # Company Name - Large and Bold
         self.styles.add(ParagraphStyle(
             name='CompanyName',
-            fontSize=16,
+            fontSize=18,
             fontName='Helvetica-Bold',
             textColor=COLORS['primary'],
             alignment=TA_LEFT,
-            spaceAfter=2*mm
+            spaceAfter=1*mm,
+            leading=22
         ))
 
+        # Company Details
         self.styles.add(ParagraphStyle(
             name='CompanyDetails',
             fontSize=9,
+            fontName='Helvetica',
             textColor=COLORS['text_dark'],
             alignment=TA_LEFT,
-            spaceAfter=1*mm
+            spaceAfter=0.5*mm,
+            leading=12
         ))
 
+        # Document Title (TAX INVOICE, etc.)
         self.styles.add(ParagraphStyle(
             name='DocTitle',
             fontSize=14,
             fontName='Helvetica-Bold',
-            textColor=colors.white,
+            textColor=COLORS['white'],
             alignment=TA_CENTER,
+            leading=18
         ))
 
+        # Section Header
         self.styles.add(ParagraphStyle(
             name='SectionHeader',
             fontSize=10,
             fontName='Helvetica-Bold',
             textColor=COLORS['primary'],
-            spaceBefore=3*mm,
-            spaceAfter=2*mm
+            spaceBefore=2*mm,
+            spaceAfter=1*mm
+        ))
+
+        # Customer/Party Details
+        self.styles.add(ParagraphStyle(
+            name='PartyName',
+            fontSize=10,
+            fontName='Helvetica-Bold',
+            textColor=COLORS['text_dark'],
+            leading=14
         ))
 
         self.styles.add(ParagraphStyle(
-            name='CustomerDetails',
+            name='PartyDetails',
             fontSize=9,
+            fontName='Helvetica',
             textColor=COLORS['text_dark'],
-            alignment=TA_LEFT,
+            leading=12
         ))
 
+        # Invoice Info (right side)
+        self.styles.add(ParagraphStyle(
+            name='InvoiceInfo',
+            fontSize=9,
+            fontName='Helvetica',
+            textColor=COLORS['text_dark'],
+            alignment=TA_RIGHT,
+            leading=12
+        ))
+
+        self.styles.add(ParagraphStyle(
+            name='InvoiceInfoBold',
+            fontSize=10,
+            fontName='Helvetica-Bold',
+            textColor=COLORS['text_dark'],
+            alignment=TA_RIGHT,
+            leading=14
+        ))
+
+        # Amount in Words
         self.styles.add(ParagraphStyle(
             name='AmountWords',
             fontSize=9,
             fontName='Helvetica-Oblique',
             textColor=COLORS['text_dark'],
             alignment=TA_LEFT,
+            leading=12
+        ))
+
+        # Footer text
+        self.styles.add(ParagraphStyle(
+            name='Footer',
+            fontSize=8,
+            fontName='Helvetica',
+            textColor=COLORS['text_muted'],
+            alignment=TA_LEFT,
+            leading=10
+        ))
+
+        self.styles.add(ParagraphStyle(
+            name='FooterCenter',
+            fontSize=8,
+            fontName='Helvetica',
+            textColor=COLORS['text_muted'],
+            alignment=TA_CENTER,
+            leading=10
+        ))
+
+        # Bank Details
+        self.styles.add(ParagraphStyle(
+            name='BankHeader',
+            fontSize=9,
+            fontName='Helvetica-Bold',
+            textColor=COLORS['primary'],
+            leading=12
+        ))
+
+        self.styles.add(ParagraphStyle(
+            name='BankDetails',
+            fontSize=8,
+            fontName='Helvetica',
+            textColor=COLORS['text_dark'],
+            leading=11
         ))
 
     def generate_invoice_pdf(self, invoice, company, items):
-        """Generate invoice PDF"""
+        """Generate professional invoice PDF"""
         buffer = BytesIO()
         doc = SimpleDocTemplate(
             buffer,
@@ -156,34 +253,43 @@ class PDFGenerator:
 
         elements = []
 
-        # Header with company info
-        elements.extend(self._build_header(company, 'TAX INVOICE', invoice.invoice_number, invoice.invoice_date))
+        # 1. Header Section (Company + Invoice Info)
+        elements.extend(self._build_professional_header(company, 'TAX INVOICE', invoice))
 
-        # Customer details
-        elements.extend(self._build_customer_section(invoice.customer_name, invoice.customer))
+        # 2. Bill From / Bill To Section
+        elements.extend(self._build_billing_parties(company, invoice.customer_name, invoice.customer))
 
-        # Items table
-        elements.extend(self._build_items_table(items))
+        # 3. Items Table
+        elements.extend(self._build_professional_items_table(items))
 
-        # Totals
-        elements.extend(self._build_totals(invoice))
+        # 4. HSN Summary (GST Compliance)
+        hsn_summary = self._calculate_hsn_summary(items)
+        if hsn_summary:
+            elements.extend(self._build_hsn_summary_table(hsn_summary))
 
-        # Amount in words
-        elements.append(Spacer(1, 3*mm))
+        # 5. Totals Section
+        elements.extend(self._build_professional_totals(invoice))
+
+        # 6. Amount in Words
+        elements.append(Spacer(1, 2*mm))
         elements.append(Paragraph(
             f"<b>Amount in Words:</b> {number_to_words_indian(invoice.grand_total)}",
             self.styles['AmountWords']
         ))
 
-        # Footer
-        elements.extend(self._build_footer(company))
+        # 7. Bank Details (if available)
+        if company and (company.bank_name or company.bank_account):
+            elements.extend(self._build_bank_details(company))
+
+        # 8. Footer Section
+        elements.extend(self._build_professional_footer(company))
 
         doc.build(elements)
         buffer.seek(0)
         return buffer.getvalue()
 
     def generate_quotation_pdf(self, quotation, company, items):
-        """Generate quotation PDF"""
+        """Generate professional quotation PDF"""
         buffer = BytesIO()
         doc = SimpleDocTemplate(
             buffer,
@@ -197,20 +303,21 @@ class PDFGenerator:
         elements = []
 
         # Header
-        elements.extend(self._build_header(company, 'QUOTATION', quotation.quotation_number, quotation.quotation_date))
+        elements.extend(self._build_professional_header(company, 'QUOTATION', quotation, is_quotation=True))
 
         # Validity info
-        elements.append(Paragraph(
-            f"<b>Valid Until:</b> {quotation.validity_date.strftime('%d %b %Y') if quotation.validity_date else 'N/A'}",
-            self.styles['CustomerDetails']
-        ))
-        elements.append(Spacer(1, 2*mm))
+        if quotation.validity_date:
+            elements.append(Paragraph(
+                f"<b>Valid Until:</b> {quotation.validity_date.strftime('%d %b %Y')}",
+                self.styles['PartyDetails']
+            ))
+            elements.append(Spacer(1, 2*mm))
 
-        # Customer details
-        elements.extend(self._build_customer_section(quotation.customer_name, quotation.customer))
+        # Billing parties
+        elements.extend(self._build_billing_parties(company, quotation.customer_name, quotation.customer))
 
         # Items table
-        elements.extend(self._build_items_table(items))
+        elements.extend(self._build_professional_items_table(items))
 
         # Totals
         elements.extend(self._build_quotation_totals(quotation))
@@ -219,22 +326,22 @@ class PDFGenerator:
         if quotation.notes:
             elements.append(Spacer(1, 3*mm))
             elements.append(Paragraph("<b>Notes:</b>", self.styles['SectionHeader']))
-            elements.append(Paragraph(quotation.notes, self.styles['CustomerDetails']))
+            elements.append(Paragraph(quotation.notes, self.styles['PartyDetails']))
 
         if quotation.terms_conditions:
             elements.append(Spacer(1, 3*mm))
             elements.append(Paragraph("<b>Terms & Conditions:</b>", self.styles['SectionHeader']))
-            elements.append(Paragraph(quotation.terms_conditions, self.styles['CustomerDetails']))
+            elements.append(Paragraph(quotation.terms_conditions, self.styles['PartyDetails']))
 
         # Footer
-        elements.extend(self._build_footer(company))
+        elements.extend(self._build_professional_footer(company))
 
         doc.build(elements)
         buffer.seek(0)
         return buffer.getvalue()
 
     def generate_credit_note_pdf(self, credit_note, company, items):
-        """Generate credit note PDF"""
+        """Generate professional credit note PDF"""
         buffer = BytesIO()
         doc = SimpleDocTemplate(
             buffer,
@@ -248,267 +355,583 @@ class PDFGenerator:
         elements = []
 
         # Header
-        elements.extend(self._build_header(company, 'CREDIT NOTE', credit_note.credit_note_number, credit_note.credit_note_date))
+        elements.extend(self._build_professional_header(company, 'CREDIT NOTE', credit_note, is_credit_note=True))
 
         # Original invoice reference
         if credit_note.original_invoice_number:
             elements.append(Paragraph(
                 f"<b>Against Invoice:</b> {credit_note.original_invoice_number}",
-                self.styles['CustomerDetails']
+                self.styles['PartyDetails']
             ))
-            elements.append(Spacer(1, 2*mm))
 
         # Reason
-        reason_labels = dict(CreditNote.REASONS) if hasattr(credit_note, 'REASONS') else {}
+        reason_labels = {'RETURN': 'Product Return', 'DAMAGE': 'Damaged Goods',
+                        'PRICE_ADJUSTMENT': 'Price Adjustment', 'OTHER': 'Other'}
         reason_text = reason_labels.get(credit_note.reason, credit_note.reason)
-        elements.append(Paragraph(f"<b>Reason:</b> {reason_text}", self.styles['CustomerDetails']))
+        elements.append(Paragraph(f"<b>Reason:</b> {reason_text}", self.styles['PartyDetails']))
         if credit_note.reason_details:
-            elements.append(Paragraph(f"<b>Details:</b> {credit_note.reason_details}", self.styles['CustomerDetails']))
+            elements.append(Paragraph(f"<b>Details:</b> {credit_note.reason_details}", self.styles['PartyDetails']))
         elements.append(Spacer(1, 2*mm))
 
         # Customer details
-        elements.extend(self._build_customer_section(credit_note.customer_name, credit_note.original_invoice.customer if credit_note.original_invoice else None))
+        customer = credit_note.original_invoice.customer if credit_note.original_invoice else None
+        elements.extend(self._build_billing_parties(company, credit_note.customer_name, customer))
 
         # Items table
-        elements.extend(self._build_items_table(items))
+        elements.extend(self._build_professional_items_table(items))
 
         # Totals
         elements.extend(self._build_credit_note_totals(credit_note))
 
         # Footer
-        elements.extend(self._build_footer(company))
+        elements.extend(self._build_professional_footer(company))
 
         doc.build(elements)
         buffer.seek(0)
         return buffer.getvalue()
 
-    def _build_header(self, company, doc_type, doc_number, doc_date):
-        """Build document header"""
+    def _build_professional_header(self, company, doc_type, doc, is_quotation=False, is_credit_note=False):
+        """Build professional header with company info and document details"""
         elements = []
 
-        # Company name
-        company_name = company.name if company else 'Company Name'
-        elements.append(Paragraph(company_name, self.styles['CompanyName']))
+        # Determine document number and date
+        if hasattr(doc, 'invoice_number'):
+            doc_number = doc.invoice_number
+            doc_date = doc.invoice_date
+        elif hasattr(doc, 'quotation_number'):
+            doc_number = doc.quotation_number
+            doc_date = doc.quotation_date
+        elif hasattr(doc, 'credit_note_number'):
+            doc_number = doc.credit_note_number
+            doc_date = doc.credit_note_date
+        else:
+            doc_number = 'N/A'
+            doc_date = date.today()
 
-        # Company details
+        # Build company info (left side)
+        company_name = company.name if company else 'Company Name'
+        company_lines = [Paragraph(company_name, self.styles['CompanyName'])]
+
         if company:
             if company.address:
-                elements.append(Paragraph(company.address, self.styles['CompanyDetails']))
-            details = []
-            if company.phone:
-                details.append(f"Phone: {company.phone}")
-            if company.email:
-                details.append(f"Email: {company.email}")
-            if details:
-                elements.append(Paragraph(' | '.join(details), self.styles['CompanyDetails']))
-            if company.gstin:
-                elements.append(Paragraph(f"GSTIN: {company.gstin}", self.styles['CompanyDetails']))
+                company_lines.append(Paragraph(company.address, self.styles['CompanyDetails']))
 
+            contact_parts = []
+            if company.phone:
+                contact_parts.append(f"Ph: {company.phone}")
+            if company.email:
+                contact_parts.append(f"Email: {company.email}")
+            if contact_parts:
+                company_lines.append(Paragraph(' | '.join(contact_parts), self.styles['CompanyDetails']))
+
+            if company.gstin:
+                company_lines.append(Paragraph(f"<b>GSTIN:</b> {company.gstin}", self.styles['CompanyDetails']))
+            if company.pan:
+                company_lines.append(Paragraph(f"<b>PAN:</b> {company.pan}", self.styles['CompanyDetails']))
+
+        # Build invoice info (right side)
+        invoice_lines = []
+        invoice_lines.append(Paragraph(f"<b>{doc_type}</b>", self.styles['InvoiceInfoBold']))
+        invoice_lines.append(Paragraph(f"<b>No:</b> {doc_number}", self.styles['InvoiceInfo']))
+        invoice_lines.append(Paragraph(f"<b>Date:</b> {doc_date.strftime('%d %b %Y') if doc_date else ''}", self.styles['InvoiceInfo']))
+
+        # Create two-column header table
+        left_content = []
+        for line in company_lines:
+            left_content.append([line])
+        left_table = Table(left_content, colWidths=[110*mm])
+        left_table.setStyle(TableStyle([
+            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+            ('LEFTPADDING', (0, 0), (-1, -1), 0),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 0),
+            ('TOPPADDING', (0, 0), (-1, -1), 0),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 0),
+        ]))
+
+        right_content = []
+        for line in invoice_lines:
+            right_content.append([line])
+        right_table = Table(right_content, colWidths=[60*mm])
+        right_table.setStyle(TableStyle([
+            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+            ('LEFTPADDING', (0, 0), (-1, -1), 0),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 0),
+            ('TOPPADDING', (0, 0), (-1, -1), 0),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 0),
+            ('BACKGROUND', (0, 0), (-1, -1), COLORS['light_bg']),
+            ('BOX', (0, 0), (-1, -1), 0.5, COLORS['border']),
+        ]))
+
+        header_table = Table([[left_table, right_table]], colWidths=[120*mm, 66*mm])
+        header_table.setStyle(TableStyle([
+            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+            ('LEFTPADDING', (0, 0), (-1, -1), 0),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 0),
+        ]))
+        elements.append(header_table)
         elements.append(Spacer(1, 3*mm))
 
         # Document title bar
-        title_data = [[
-            Paragraph(doc_type, self.styles['DocTitle']),
-            Paragraph(f"No: {doc_number}", self.styles['DocTitle']),
-            Paragraph(f"Date: {doc_date.strftime('%d %b %Y') if doc_date else ''}", self.styles['DocTitle'])
-        ]]
-        title_table = Table(title_data, colWidths=[80*mm, 50*mm, 50*mm])
+        if is_credit_note:
+            title_bg = COLORS['danger']
+        elif is_quotation:
+            title_bg = COLORS['warning']
+        else:
+            title_bg = COLORS['primary']
+
+        title_data = [[Paragraph(doc_type, self.styles['DocTitle'])]]
+        title_table = Table(title_data, colWidths=[self.content_width])
         title_table.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (-1, -1), COLORS['header_bg']),
-            ('TEXTCOLOR', (0, 0), (-1, -1), colors.white),
-            ('ALIGN', (0, 0), (0, 0), 'LEFT'),
-            ('ALIGN', (1, 0), (1, 0), 'CENTER'),
-            ('ALIGN', (2, 0), (2, 0), 'RIGHT'),
+            ('BACKGROUND', (0, 0), (-1, -1), title_bg),
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
             ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-            ('TOPPADDING', (0, 0), (-1, -1), 3*mm),
-            ('BOTTOMPADDING', (0, 0), (-1, -1), 3*mm),
-            ('LEFTPADDING', (0, 0), (-1, -1), 3*mm),
-            ('RIGHTPADDING', (0, 0), (-1, -1), 3*mm),
+            ('TOPPADDING', (0, 0), (-1, -1), 2.5*mm),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 2.5*mm),
         ]))
         elements.append(title_table)
-        elements.append(Spacer(1, 3*mm))
+        elements.append(Spacer(1, 4*mm))
 
         return elements
 
-    def _build_customer_section(self, customer_name, customer):
-        """Build customer details section"""
+    def _build_billing_parties(self, company, customer_name, customer):
+        """Build Bill From / Bill To section in two columns"""
         elements = []
-        elements.append(Paragraph("<b>Bill To:</b>", self.styles['SectionHeader']))
-        elements.append(Paragraph(customer_name or 'Walk-in Customer', self.styles['CustomerDetails']))
 
+        # Bill From content
+        from_content = [Paragraph("<b>BILL FROM</b>", self.styles['SectionHeader'])]
+        if company:
+            from_content.append(Paragraph(company.name or 'Company Name', self.styles['PartyName']))
+            if company.address:
+                from_content.append(Paragraph(company.address, self.styles['PartyDetails']))
+            if company.gstin:
+                from_content.append(Paragraph(f"GSTIN: {company.gstin}", self.styles['PartyDetails']))
+            state_name = get_state_name(company.state_code) if company.state_code else ''
+            if state_name:
+                from_content.append(Paragraph(f"State: {state_name} ({company.state_code})", self.styles['PartyDetails']))
+
+        # Bill To content
+        to_content = [Paragraph("<b>BILL TO</b>", self.styles['SectionHeader'])]
+        to_content.append(Paragraph(customer_name or 'Walk-in Customer', self.styles['PartyName']))
         if customer:
             if customer.address:
-                elements.append(Paragraph(customer.address, self.styles['CustomerDetails']))
+                to_content.append(Paragraph(customer.address, self.styles['PartyDetails']))
             if customer.gstin:
-                elements.append(Paragraph(f"GSTIN: {customer.gstin}", self.styles['CustomerDetails']))
+                to_content.append(Paragraph(f"GSTIN: {customer.gstin}", self.styles['PartyDetails']))
             if customer.state_code:
-                elements.append(Paragraph(f"State: {get_state_name(customer.state_code)} ({customer.state_code})", self.styles['CustomerDetails']))
+                state_name = get_state_name(customer.state_code)
+                to_content.append(Paragraph(f"State: {state_name} ({customer.state_code})", self.styles['PartyDetails']))
+            if hasattr(customer, 'phone') and customer.phone:
+                to_content.append(Paragraph(f"Phone: {customer.phone}", self.styles['PartyDetails']))
 
-        elements.append(Spacer(1, 3*mm))
+        # Create tables for each column
+        from_table_data = [[item] for item in from_content]
+        from_table = Table(from_table_data, colWidths=[88*mm])
+        from_table.setStyle(TableStyle([
+            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+            ('LEFTPADDING', (0, 0), (-1, -1), 2*mm),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 2*mm),
+            ('TOPPADDING', (0, 0), (-1, -1), 1*mm),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 1*mm),
+            ('BACKGROUND', (0, 0), (-1, -1), COLORS['light_bg']),
+        ]))
+
+        to_table_data = [[item] for item in to_content]
+        to_table = Table(to_table_data, colWidths=[88*mm])
+        to_table.setStyle(TableStyle([
+            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+            ('LEFTPADDING', (0, 0), (-1, -1), 2*mm),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 2*mm),
+            ('TOPPADDING', (0, 0), (-1, -1), 1*mm),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 1*mm),
+            ('BOX', (0, 0), (-1, -1), 0.5, COLORS['border']),
+        ]))
+
+        # Combine into two-column layout
+        parties_table = Table([[from_table, to_table]], colWidths=[93*mm, 93*mm])
+        parties_table.setStyle(TableStyle([
+            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+            ('LEFTPADDING', (0, 0), (-1, -1), 0),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 0),
+        ]))
+        elements.append(parties_table)
+        elements.append(Spacer(1, 4*mm))
+
         return elements
 
-    def _build_items_table(self, items):
-        """Build items table"""
+    def _build_professional_items_table(self, items):
+        """Build professional items table with modern styling"""
         elements = []
 
         # Table headers
-        headers = ['#', 'Product', 'HSN', 'Qty', 'Rate', 'Taxable', 'GST%', 'Tax', 'Total']
+        headers = ['#', 'Description', 'HSN', 'Qty', 'Rate', 'Taxable', 'GST%', 'Tax', 'Total']
         data = [headers]
 
         # Table rows
         for i, item in enumerate(items, 1):
-            tax = item.cgst + item.sgst + item.igst
+            tax = (item.cgst or 0) + (item.sgst or 0) + (item.igst or 0)
+            product_name = (item.product_name or '')[:35]  # Truncate long names
             data.append([
                 str(i),
-                item.product_name[:30],
+                product_name,
                 item.hsn_code or '-',
                 f"{item.qty:.2f}",
-                f"{item.rate:.2f}",
-                f"{item.taxable_value:.2f}",
+                f"{item.rate:,.2f}",
+                f"{item.taxable_value:,.2f}",
                 f"{item.gst_rate:.0f}%",
-                f"{tax:.2f}",
-                f"{item.total:.2f}"
+                f"{tax:,.2f}",
+                f"{item.total:,.2f}"
             ])
 
-        col_widths = [8*mm, 45*mm, 18*mm, 18*mm, 20*mm, 22*mm, 15*mm, 18*mm, 22*mm]
+        # Column widths
+        col_widths = [8*mm, 48*mm, 16*mm, 16*mm, 22*mm, 24*mm, 14*mm, 18*mm, 22*mm]
         table = Table(data, colWidths=col_widths)
 
-        style = TableStyle([
-            # Header
-            ('BACKGROUND', (0, 0), (-1, 0), COLORS['header_bg']),
-            ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+        # Table styling
+        style_commands = [
+            # Header row
+            ('BACKGROUND', (0, 0), (-1, 0), COLORS['primary']),
+            ('TEXTCOLOR', (0, 0), (-1, 0), COLORS['white']),
             ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
             ('FONTSIZE', (0, 0), (-1, 0), 8),
             ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
+            ('VALIGN', (0, 0), (-1, 0), 'MIDDLE'),
 
-            # Body
+            # Body rows
+            ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
             ('FONTSIZE', (0, 1), (-1, -1), 8),
-            ('ALIGN', (0, 1), (0, -1), 'CENTER'),
-            ('ALIGN', (3, 1), (-1, -1), 'RIGHT'),
+            ('ALIGN', (0, 1), (0, -1), 'CENTER'),  # # column
+            ('ALIGN', (1, 1), (1, -1), 'LEFT'),    # Description
+            ('ALIGN', (2, 1), (2, -1), 'CENTER'),  # HSN
+            ('ALIGN', (3, 1), (-1, -1), 'RIGHT'),  # Numbers right-aligned
+            ('VALIGN', (0, 1), (-1, -1), 'MIDDLE'),
 
-            # Grid
-            ('GRID', (0, 0), (-1, -1), 0.5, COLORS['border']),
-            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-            ('TOPPADDING', (0, 0), (-1, -1), 2*mm),
-            ('BOTTOMPADDING', (0, 0), (-1, -1), 2*mm),
-        ])
+            # Borders
+            ('BOX', (0, 0), (-1, -1), 0.5, COLORS['border_dark']),
+            ('LINEBELOW', (0, 0), (-1, 0), 1, COLORS['primary']),
+            ('INNERGRID', (0, 0), (-1, -1), 0.25, COLORS['border']),
 
-        # Alternate row colors
+            # Padding
+            ('TOPPADDING', (0, 0), (-1, 0), 3*mm),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 3*mm),
+            ('TOPPADDING', (0, 1), (-1, -1), 2*mm),
+            ('BOTTOMPADDING', (0, 1), (-1, -1), 2*mm),
+            ('LEFTPADDING', (0, 0), (-1, -1), 1.5*mm),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 1.5*mm),
+        ]
+
+        # Alternating row colors
         for i in range(1, len(data)):
             if i % 2 == 0:
-                style.add('BACKGROUND', (0, i), (-1, i), COLORS['row_alt'])
+                style_commands.append(('BACKGROUND', (0, i), (-1, i), COLORS['lighter_bg']))
 
-        table.setStyle(style)
+        table.setStyle(TableStyle(style_commands))
         elements.append(table)
 
         return elements
 
-    def _build_totals(self, invoice):
-        """Build invoice totals section"""
+    def _calculate_hsn_summary(self, items):
+        """Calculate HSN-wise tax summary"""
+        hsn_data = {}
+        for item in items:
+            hsn = item.hsn_code or 'NA'
+            if hsn not in hsn_data:
+                hsn_data[hsn] = {
+                    'taxable': 0,
+                    'cgst': 0,
+                    'sgst': 0,
+                    'igst': 0,
+                    'gst_rate': item.gst_rate or 0
+                }
+            hsn_data[hsn]['taxable'] += item.taxable_value or 0
+            hsn_data[hsn]['cgst'] += item.cgst or 0
+            hsn_data[hsn]['sgst'] += item.sgst or 0
+            hsn_data[hsn]['igst'] += item.igst or 0
+        return hsn_data
+
+    def _build_hsn_summary_table(self, hsn_summary):
+        """Build HSN-wise tax summary table (GST compliance)"""
         elements = []
-        elements.append(Spacer(1, 2*mm))
+        elements.append(Spacer(1, 3*mm))
+        elements.append(Paragraph("<b>HSN-wise Tax Summary</b>", self.styles['SectionHeader']))
 
-        totals_data = [
-            ['Subtotal:', format_currency(invoice.subtotal)],
-        ]
-        if invoice.cgst_total > 0:
-            totals_data.append(['CGST:', format_currency(invoice.cgst_total)])
-            totals_data.append(['SGST:', format_currency(invoice.sgst_total)])
-        if invoice.igst_total > 0:
-            totals_data.append(['IGST:', format_currency(invoice.igst_total)])
-        if invoice.discount > 0:
-            totals_data.append(['Discount:', f"- {format_currency(invoice.discount)}"])
-        totals_data.append(['Grand Total:', format_currency(invoice.grand_total)])
+        # Determine if we have IGST or CGST/SGST
+        has_igst = any(v['igst'] > 0 for v in hsn_summary.values())
 
-        totals_table = Table(totals_data, colWidths=[140*mm, 40*mm])
-        totals_table.setStyle(TableStyle([
-            ('ALIGN', (0, 0), (0, -1), 'RIGHT'),
-            ('ALIGN', (1, 0), (1, -1), 'RIGHT'),
-            ('FONTSIZE', (0, 0), (-1, -1), 9),
-            ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
-            ('BACKGROUND', (0, -1), (-1, -1), COLORS['light_bg']),
+        if has_igst:
+            headers = ['HSN Code', 'Taxable Value', 'IGST Rate', 'IGST Amount']
+            col_widths = [35*mm, 50*mm, 30*mm, 40*mm]
+        else:
+            headers = ['HSN Code', 'Taxable Value', 'CGST', 'SGST', 'Total Tax']
+            col_widths = [30*mm, 40*mm, 30*mm, 30*mm, 30*mm]
+
+        data = [headers]
+
+        total_taxable = 0
+        total_cgst = 0
+        total_sgst = 0
+        total_igst = 0
+
+        for hsn, values in hsn_summary.items():
+            total_taxable += values['taxable']
+            if has_igst:
+                total_igst += values['igst']
+                data.append([
+                    hsn,
+                    f"{values['taxable']:,.2f}",
+                    f"{values['gst_rate']:.0f}%",
+                    f"{values['igst']:,.2f}"
+                ])
+            else:
+                total_cgst += values['cgst']
+                total_sgst += values['sgst']
+                total_tax = values['cgst'] + values['sgst']
+                data.append([
+                    hsn,
+                    f"{values['taxable']:,.2f}",
+                    f"{values['cgst']:,.2f}",
+                    f"{values['sgst']:,.2f}",
+                    f"{total_tax:,.2f}"
+                ])
+
+        # Totals row
+        if has_igst:
+            data.append(['Total', f"{total_taxable:,.2f}", '', f"{total_igst:,.2f}"])
+        else:
+            data.append(['Total', f"{total_taxable:,.2f}", f"{total_cgst:,.2f}",
+                        f"{total_sgst:,.2f}", f"{total_cgst + total_sgst:,.2f}"])
+
+        table = Table(data, colWidths=col_widths)
+        style_commands = [
+            ('BACKGROUND', (0, 0), (-1, 0), COLORS['primary_light']),
+            ('TEXTCOLOR', (0, 0), (-1, 0), COLORS['white']),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, -1), 8),
+            ('ALIGN', (0, 0), (0, -1), 'LEFT'),
+            ('ALIGN', (1, 0), (-1, -1), 'RIGHT'),
+            ('BOX', (0, 0), (-1, -1), 0.5, COLORS['border']),
+            ('INNERGRID', (0, 0), (-1, -1), 0.25, COLORS['border']),
             ('TOPPADDING', (0, 0), (-1, -1), 1.5*mm),
             ('BOTTOMPADDING', (0, 0), (-1, -1), 1.5*mm),
+            ('BACKGROUND', (0, -1), (-1, -1), COLORS['light_bg']),
+            ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
+        ]
+        table.setStyle(TableStyle(style_commands))
+        elements.append(table)
+
+        return elements
+
+    def _build_professional_totals(self, invoice):
+        """Build professional totals section"""
+        elements = []
+        elements.append(Spacer(1, 3*mm))
+
+        # Build totals data
+        totals_data = []
+        totals_data.append(['Subtotal', format_currency(invoice.subtotal)])
+
+        if invoice.cgst_total and invoice.cgst_total > 0:
+            totals_data.append(['CGST', format_currency(invoice.cgst_total)])
+            totals_data.append(['SGST', format_currency(invoice.sgst_total)])
+
+        if invoice.igst_total and invoice.igst_total > 0:
+            totals_data.append(['IGST', format_currency(invoice.igst_total)])
+
+        if invoice.discount and invoice.discount > 0:
+            totals_data.append(['Discount', f"- {format_currency(invoice.discount)}"])
+
+        totals_data.append(['GRAND TOTAL', format_currency(invoice.grand_total)])
+
+        # Create totals table (right-aligned)
+        totals_table = Table(totals_data, colWidths=[30*mm, 40*mm])
+
+        style_commands = [
+            ('ALIGN', (0, 0), (0, -1), 'RIGHT'),
+            ('ALIGN', (1, 0), (1, -1), 'RIGHT'),
+            ('FONTNAME', (0, 0), (-1, -2), 'Helvetica'),
+            ('FONTSIZE', (0, 0), (-1, -1), 9),
+            ('TOPPADDING', (0, 0), (-1, -1), 2*mm),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 2*mm),
+            ('LEFTPADDING', (0, 0), (-1, -1), 2*mm),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 2*mm),
+            # Grand total row
+            ('BACKGROUND', (0, -1), (-1, -1), COLORS['primary']),
+            ('TEXTCOLOR', (0, -1), (-1, -1), COLORS['white']),
+            ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, -1), (-1, -1), 11),
+            ('BOX', (0, 0), (-1, -1), 0.5, COLORS['border']),
+        ]
+        totals_table.setStyle(TableStyle(style_commands))
+
+        # Wrapper to right-align the totals table
+        wrapper_data = [['', totals_table]]
+        wrapper_table = Table(wrapper_data, colWidths=[self.content_width - 75*mm, 75*mm])
+        wrapper_table.setStyle(TableStyle([
+            ('ALIGN', (1, 0), (1, 0), 'RIGHT'),
+            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
         ]))
-        elements.append(totals_table)
+        elements.append(wrapper_table)
 
         return elements
 
     def _build_quotation_totals(self, quotation):
         """Build quotation totals section"""
         elements = []
-        elements.append(Spacer(1, 2*mm))
+        elements.append(Spacer(1, 3*mm))
 
-        totals_data = [
-            ['Subtotal:', format_currency(quotation.subtotal)],
-        ]
-        if quotation.cgst_total > 0:
-            totals_data.append(['CGST:', format_currency(quotation.cgst_total)])
-            totals_data.append(['SGST:', format_currency(quotation.sgst_total)])
-        if quotation.igst_total > 0:
-            totals_data.append(['IGST:', format_currency(quotation.igst_total)])
-        if quotation.discount > 0:
-            totals_data.append(['Discount:', f"- {format_currency(quotation.discount)}"])
-        totals_data.append(['Grand Total:', format_currency(quotation.grand_total)])
+        totals_data = []
+        totals_data.append(['Subtotal', format_currency(quotation.subtotal)])
 
-        totals_table = Table(totals_data, colWidths=[140*mm, 40*mm])
-        totals_table.setStyle(TableStyle([
+        if quotation.cgst_total and quotation.cgst_total > 0:
+            totals_data.append(['CGST', format_currency(quotation.cgst_total)])
+            totals_data.append(['SGST', format_currency(quotation.sgst_total)])
+
+        if quotation.igst_total and quotation.igst_total > 0:
+            totals_data.append(['IGST', format_currency(quotation.igst_total)])
+
+        if quotation.discount and quotation.discount > 0:
+            totals_data.append(['Discount', f"- {format_currency(quotation.discount)}"])
+
+        totals_data.append(['TOTAL', format_currency(quotation.grand_total)])
+
+        totals_table = Table(totals_data, colWidths=[30*mm, 40*mm])
+        style_commands = [
             ('ALIGN', (0, 0), (0, -1), 'RIGHT'),
             ('ALIGN', (1, 0), (1, -1), 'RIGHT'),
+            ('FONTNAME', (0, 0), (-1, -2), 'Helvetica'),
             ('FONTSIZE', (0, 0), (-1, -1), 9),
+            ('TOPPADDING', (0, 0), (-1, -1), 2*mm),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 2*mm),
+            ('BACKGROUND', (0, -1), (-1, -1), COLORS['warning']),
+            ('TEXTCOLOR', (0, -1), (-1, -1), COLORS['white']),
             ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
-            ('BACKGROUND', (0, -1), (-1, -1), COLORS['light_bg']),
-            ('TOPPADDING', (0, 0), (-1, -1), 1.5*mm),
-            ('BOTTOMPADDING', (0, 0), (-1, -1), 1.5*mm),
-        ]))
-        elements.append(totals_table)
+            ('FONTSIZE', (0, -1), (-1, -1), 11),
+            ('BOX', (0, 0), (-1, -1), 0.5, COLORS['border']),
+        ]
+        totals_table.setStyle(TableStyle(style_commands))
+
+        wrapper_data = [['', totals_table]]
+        wrapper_table = Table(wrapper_data, colWidths=[self.content_width - 75*mm, 75*mm])
+        wrapper_table.setStyle(TableStyle([('ALIGN', (1, 0), (1, 0), 'RIGHT')]))
+        elements.append(wrapper_table)
 
         return elements
 
     def _build_credit_note_totals(self, credit_note):
         """Build credit note totals section"""
         elements = []
-        elements.append(Spacer(1, 2*mm))
+        elements.append(Spacer(1, 3*mm))
 
-        totals_data = [
-            ['Subtotal:', format_currency(credit_note.subtotal)],
-        ]
-        if credit_note.cgst_total > 0:
-            totals_data.append(['CGST:', format_currency(credit_note.cgst_total)])
-            totals_data.append(['SGST:', format_currency(credit_note.sgst_total)])
-        if credit_note.igst_total > 0:
-            totals_data.append(['IGST:', format_currency(credit_note.igst_total)])
-        totals_data.append(['Credit Amount:', format_currency(credit_note.grand_total)])
+        totals_data = []
+        totals_data.append(['Subtotal', format_currency(credit_note.subtotal)])
 
-        totals_table = Table(totals_data, colWidths=[140*mm, 40*mm])
-        totals_table.setStyle(TableStyle([
+        if credit_note.cgst_total and credit_note.cgst_total > 0:
+            totals_data.append(['CGST', format_currency(credit_note.cgst_total)])
+            totals_data.append(['SGST', format_currency(credit_note.sgst_total)])
+
+        if credit_note.igst_total and credit_note.igst_total > 0:
+            totals_data.append(['IGST', format_currency(credit_note.igst_total)])
+
+        totals_data.append(['CREDIT AMOUNT', format_currency(credit_note.grand_total)])
+
+        totals_table = Table(totals_data, colWidths=[35*mm, 40*mm])
+        style_commands = [
             ('ALIGN', (0, 0), (0, -1), 'RIGHT'),
             ('ALIGN', (1, 0), (1, -1), 'RIGHT'),
+            ('FONTNAME', (0, 0), (-1, -2), 'Helvetica'),
             ('FONTSIZE', (0, 0), (-1, -1), 9),
+            ('TOPPADDING', (0, 0), (-1, -1), 2*mm),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 2*mm),
+            ('BACKGROUND', (0, -1), (-1, -1), COLORS['danger']),
+            ('TEXTCOLOR', (0, -1), (-1, -1), COLORS['white']),
             ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
-            ('BACKGROUND', (0, -1), (-1, -1), COLORS['light_bg']),
-            ('TOPPADDING', (0, 0), (-1, -1), 1.5*mm),
-            ('BOTTOMPADDING', (0, 0), (-1, -1), 1.5*mm),
-        ]))
-        elements.append(totals_table)
+            ('FONTSIZE', (0, -1), (-1, -1), 11),
+            ('BOX', (0, 0), (-1, -1), 0.5, COLORS['border']),
+        ]
+        totals_table.setStyle(TableStyle(style_commands))
+
+        wrapper_data = [['', totals_table]]
+        wrapper_table = Table(wrapper_data, colWidths=[self.content_width - 80*mm, 80*mm])
+        wrapper_table.setStyle(TableStyle([('ALIGN', (1, 0), (1, 0), 'RIGHT')]))
+        elements.append(wrapper_table)
 
         return elements
 
-    def _build_footer(self, company):
-        """Build document footer"""
+    def _build_bank_details(self, company):
+        """Build bank details section"""
         elements = []
-        elements.append(Spacer(1, 10*mm))
+        elements.append(Spacer(1, 4*mm))
+        elements.append(HRFlowable(width="100%", thickness=0.5, color=COLORS['border']))
+        elements.append(Spacer(1, 2*mm))
 
-        # Signature line
-        sig_data = [['', 'Authorized Signatory']]
-        sig_table = Table(sig_data, colWidths=[120*mm, 60*mm])
-        sig_table.setStyle(TableStyle([
-            ('ALIGN', (1, 0), (1, 0), 'CENTER'),
-            ('FONTSIZE', (0, 0), (-1, -1), 9),
-            ('TOPPADDING', (1, 0), (1, 0), 15*mm),
-            ('LINEABOVE', (1, 0), (1, 0), 0.5, COLORS['border']),
+        bank_content = []
+        bank_content.append(Paragraph("<b>Bank Details for Payment</b>", self.styles['BankHeader']))
+
+        if company.bank_name:
+            bank_content.append(Paragraph(f"Bank: {company.bank_name}", self.styles['BankDetails']))
+        if company.bank_account:
+            bank_content.append(Paragraph(f"Account No: {company.bank_account}", self.styles['BankDetails']))
+        if company.bank_ifsc:
+            bank_content.append(Paragraph(f"IFSC Code: {company.bank_ifsc}", self.styles['BankDetails']))
+
+        bank_table_data = [[item] for item in bank_content]
+        bank_table = Table(bank_table_data, colWidths=[90*mm])
+        bank_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, -1), COLORS['light_bg']),
+            ('LEFTPADDING', (0, 0), (-1, -1), 3*mm),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 3*mm),
+            ('TOPPADDING', (0, 0), (-1, -1), 1*mm),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 1*mm),
+            ('BOX', (0, 0), (-1, -1), 0.5, COLORS['border']),
         ]))
-        elements.append(sig_table)
+        elements.append(bank_table)
+
+        return elements
+
+    def _build_professional_footer(self, company):
+        """Build professional footer with terms and signature"""
+        elements = []
+        elements.append(Spacer(1, 8*mm))
+
+        # Terms & Conditions and Signature in two columns
+        terms_text = ""
+        if company and company.invoice_terms:
+            terms_text = company.invoice_terms
+        else:
+            terms_text = "1. Goods once sold will not be taken back.\n2. Subject to local jurisdiction."
+
+        terms_content = Paragraph(
+            f"<b>Terms & Conditions:</b><br/>{terms_text}",
+            self.styles['Footer']
+        )
+
+        # Signature area
+        company_name = company.name if company else 'Company Name'
+        sig_content = []
+        sig_content.append([''])
+        sig_content.append([Paragraph(f"For <b>{company_name}</b>", self.styles['PartyDetails'])])
+        sig_content.append([''])
+        sig_content.append([Paragraph("Authorized Signatory", self.styles['Footer'])])
+
+        sig_table = Table(sig_content, colWidths=[60*mm])
+        sig_table.setStyle(TableStyle([
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('VALIGN', (0, 0), (-1, -1), 'BOTTOM'),
+            ('TOPPADDING', (0, 0), (-1, 0), 15*mm),
+            ('LINEABOVE', (0, -1), (-1, -1), 0.5, COLORS['text_dark']),
+        ]))
+
+        footer_table = Table([[terms_content, sig_table]], colWidths=[110*mm, 70*mm])
+        footer_table.setStyle(TableStyle([
+            ('VALIGN', (0, 0), (0, 0), 'TOP'),
+            ('VALIGN', (1, 0), (1, 0), 'BOTTOM'),
+        ]))
+        elements.append(footer_table)
+
+        # Thank you message
+        elements.append(Spacer(1, 5*mm))
+        elements.append(HRFlowable(width="100%", thickness=0.5, color=COLORS['border']))
+        elements.append(Spacer(1, 2*mm))
+        elements.append(Paragraph("Thank you for your business!", self.styles['FooterCenter']))
 
         return elements
 

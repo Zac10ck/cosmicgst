@@ -37,77 +37,113 @@ def get_date_range(period='month'):
 @login_required
 def index():
     """Dashboard home page with statistics"""
-    today = date.today()
-    month_start = date(today.year, today.month, 1)
+    try:
+        today = date.today()
+        month_start = date(today.year, today.month, 1)
 
-    # Today's stats
-    today_invoices = Invoice.query.filter(
-        Invoice.invoice_date == today,
-        Invoice.is_cancelled == False
-    ).all()
-    today_sales = sum(inv.grand_total for inv in today_invoices)
+        # Today's stats
+        today_invoices = Invoice.query.filter(
+            Invoice.invoice_date == today,
+            Invoice.is_cancelled == False
+        ).all()
+        today_sales = sum(inv.grand_total or 0 for inv in today_invoices)
 
-    # Monthly stats
-    monthly_invoices = Invoice.query.filter(
-        Invoice.invoice_date >= month_start,
-        Invoice.is_cancelled == False
-    ).all()
-    monthly_sales = sum(inv.grand_total for inv in monthly_invoices)
+        # Monthly stats
+        monthly_invoices = Invoice.query.filter(
+            Invoice.invoice_date >= month_start,
+            Invoice.is_cancelled == False
+        ).all()
+        monthly_sales = sum(inv.grand_total or 0 for inv in monthly_invoices)
 
-    # Pending quotations (DRAFT or SENT status)
-    pending_quotations = Quotation.query.filter(
-        Quotation.status.in_(['DRAFT', 'SENT'])
-    ).count()
+        # Pending quotations (DRAFT or SENT status)
+        try:
+            pending_quotations = Quotation.query.filter(
+                Quotation.status.in_(['DRAFT', 'SENT'])
+            ).count()
+        except Exception:
+            pending_quotations = 0
 
-    # Low stock items
-    low_stock_products = Product.query.filter(
-        Product.is_active == True,
-        Product.stock_qty <= Product.low_stock_alert
-    ).order_by(Product.stock_qty).limit(10).all()
+        # Low stock items
+        try:
+            low_stock_products = Product.query.filter(
+                Product.is_active == True,
+                Product.stock_qty <= Product.low_stock_alert
+            ).order_by(Product.stock_qty).limit(10).all()
+        except Exception:
+            low_stock_products = []
 
-    # Total customers
-    total_customers = Customer.query.filter_by(is_active=True).count()
+        # Total customers
+        total_customers = Customer.query.filter_by(is_active=True).count()
 
-    # Unpaid invoices
-    unpaid_invoices = Invoice.query.filter(
-        Invoice.is_cancelled == False,
-        Invoice.payment_status.in_(['UNPAID', 'PARTIAL'])
-    ).all()
-    total_receivables = sum(inv.balance_due for inv in unpaid_invoices)
+        # Unpaid invoices
+        unpaid_invoices = Invoice.query.filter(
+            Invoice.is_cancelled == False,
+            Invoice.payment_status.in_(['UNPAID', 'PARTIAL'])
+        ).all()
+        total_receivables = sum(inv.balance_due or 0 for inv in unpaid_invoices)
 
-    # Recent invoices
-    recent_invoices = Invoice.query.filter_by(is_cancelled=False)\
-        .order_by(Invoice.created_at.desc()).limit(10).all()
+        # Recent invoices
+        recent_invoices = Invoice.query.filter_by(is_cancelled=False)\
+            .order_by(Invoice.created_at.desc()).limit(10).all()
 
-    # Top products this month
-    top_products = db.session.query(
-        InvoiceItem.product_name,
-        func.sum(InvoiceItem.qty).label('total_qty'),
-        func.sum(InvoiceItem.total).label('total_sales')
-    ).join(Invoice).filter(
-        Invoice.invoice_date >= month_start,
-        Invoice.is_cancelled == False
-    ).group_by(InvoiceItem.product_name)\
-     .order_by(func.sum(InvoiceItem.total).desc()).limit(5).all()
+        # Top products this month
+        try:
+            top_products = db.session.query(
+                InvoiceItem.product_name,
+                func.sum(InvoiceItem.qty).label('total_qty'),
+                func.sum(InvoiceItem.total).label('total_sales')
+            ).join(Invoice).filter(
+                Invoice.invoice_date >= month_start,
+                Invoice.is_cancelled == False
+            ).group_by(InvoiceItem.product_name)\
+             .order_by(func.sum(InvoiceItem.total).desc()).limit(5).all()
+        except Exception:
+            top_products = []
 
-    stats = {
-        'today_sales': f"₹{today_sales:,.0f}",
-        'today_invoices': len(today_invoices),
-        'monthly_sales': f"₹{monthly_sales:,.0f}",
-        'pending_quotations': pending_quotations,
-        'low_stock_items': len(low_stock_products),
-        'total_customers': total_customers,
-        'total_receivables': f"₹{total_receivables:,.0f}",
-        'unpaid_count': len(unpaid_invoices)
-    }
+        stats = {
+            'today_sales': f"₹{today_sales:,.0f}",
+            'today_invoices': len(today_invoices),
+            'monthly_sales': f"₹{monthly_sales:,.0f}",
+            'pending_quotations': pending_quotations,
+            'low_stock_items': len(low_stock_products),
+            'total_customers': total_customers,
+            'total_receivables': f"₹{total_receivables:,.0f}",
+            'unpaid_count': len(unpaid_invoices)
+        }
 
-    return render_template(
-        'dashboard/index.html',
-        stats=stats,
-        recent_invoices=recent_invoices,
-        low_stock_products=low_stock_products,
-        top_products=top_products
-    )
+        return render_template(
+            'dashboard/index.html',
+            stats=stats,
+            recent_invoices=recent_invoices,
+            low_stock_products=low_stock_products,
+            top_products=top_products,
+            now=datetime.now()
+        )
+    except Exception as e:
+        # Log the error and show a basic dashboard
+        import traceback
+        print(f"Dashboard error: {e}")
+        print(traceback.format_exc())
+
+        # Return basic stats on error
+        stats = {
+            'today_sales': "₹0",
+            'today_invoices': 0,
+            'monthly_sales': "₹0",
+            'pending_quotations': 0,
+            'low_stock_items': 0,
+            'total_customers': 0,
+            'total_receivables': "₹0",
+            'unpaid_count': 0
+        }
+        return render_template(
+            'dashboard/index.html',
+            stats=stats,
+            recent_invoices=[],
+            low_stock_products=[],
+            top_products=[],
+            now=datetime.now()
+        )
 
 
 @dashboard_bp.route('/api/sales-chart')

@@ -1,5 +1,5 @@
 <!-- Top Navigation Bar -->
-<nav class="navbar navbar-expand-lg navbar-dark bg-primary fixed-top">
+<nav class="navbar navbar-expand-md navbar-dark bg-primary fixed-top">
     <div class="container-fluid">
         <a class="navbar-brand fw-bold" href="{{ url_for('dashboard.index') }}">
             <i class="bi bi-receipt-cutoff me-2"></i>GST Billing
@@ -10,13 +10,56 @@
         </button>
 
         <div class="collapse navbar-collapse" id="navbarNav">
+            <!-- Mobile Navigation Links -->
+            <ul class="navbar-nav me-auto d-md-none">
+                <li class="nav-item">
+                    <a class="nav-link" href="{{ url_for('dashboard.index') }}">
+                        <i class="bi bi-speedometer2 me-1"></i>Dashboard
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="{{ url_for('billing.new_bill') }}">
+                        <i class="bi bi-cart-plus me-1"></i>New Bill
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="{{ url_for('billing.invoice_list') }}">
+                        <i class="bi bi-receipt me-1"></i>Invoices
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="{{ url_for('products.index') }}">
+                        <i class="bi bi-box-seam me-1"></i>Products
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="{{ url_for('customers.index') }}">
+                        <i class="bi bi-people me-1"></i>Customers
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="{{ url_for('reports.index') }}">
+                        <i class="bi bi-bar-chart me-1"></i>Reports
+                    </a>
+                </li>
+                {% if current_user.is_admin() %}
+                <li class="nav-item">
+                    <a class="nav-link" href="{{ url_for('settings.index') }}">
+                        <i class="bi bi-gear me-1"></i>Settings
+                    </a>
+                </li>
+                {% endif %}
+                <li><hr class="dropdown-divider bg-light my-2"></li>
+            </ul>
+
+            <!-- User Dropdown -->
             <ul class="navbar-nav ms-auto">
                 <li class="nav-item dropdown">
                     <a class="nav-link dropdown-toggle" href="#" id="userDropdown" role="button" data-bs-toggle="dropdown">
                         <i class="bi bi-person-circle me-1"></i>
                         {{ current_user.username }}
                         {% if current_user.is_admin() %}
-                            <span class="badge bg-warning text-dark">Admin</span>
+                            <span class="badge bg-warning text-dark ms-1">Admin</span>
                         {% endif %}
                     </a>
                     <ul class="dropdown-menu dropdown-menu-end">
@@ -24,6 +67,11 @@
                         <li>
                             <a class="dropdown-item" href="{{ url_for('auth.manage_users') }}">
                                 <i class="bi bi-people me-2"></i>Manage Users
+                            </a>
+                        </li>
+                        <li>
+                            <a class="dropdown-item" href="{{ url_for('settings.index') }}">
+                                <i class="bi bi-gear me-2"></i>Settings
                             </a>
                         </li>
                         <li><hr class="dropdown-divider"></li>

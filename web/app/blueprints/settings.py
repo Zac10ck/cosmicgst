@@ -146,11 +146,16 @@ def email():
     return render_template('settings/email.html', company=company)
 
 
-@settings_bp.route('/email/test', methods=['POST'])
+@settings_bp.route('/email/test', methods=['GET', 'POST'])
 @login_required
 @admin_required
 def test_email():
     """Test email configuration"""
+    # Handle GET requests - redirect to email settings
+    if request.method == 'GET':
+        flash('Please use the test email form on this page', 'info')
+        return redirect(url_for('settings.email'))
+
     company = Company.get()
     if not company or not company.smtp_server:
         flash('Please configure email settings first', 'error')
@@ -169,10 +174,10 @@ def test_email():
         msg = MIMEMultipart()
         msg['From'] = company.email_from or company.smtp_username
         msg['To'] = test_to
-        msg['Subject'] = 'GST Billing - Test Email'
+        msg['Subject'] = 'Cosmic Surgical - Test Email'
 
         body = f"""
-        This is a test email from GST Billing.
+        This is a test email from Cosmic Surgical Billing.
 
         If you received this email, your email configuration is working correctly.
 

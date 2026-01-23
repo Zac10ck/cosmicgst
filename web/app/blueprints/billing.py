@@ -99,11 +99,22 @@ def create_invoice():
 
         # Determine payment status based on payment mode
         payment_mode = data.get('payment_mode', 'CASH')
+        credit_warning = None
         if payment_mode == 'CREDIT':
             # Credit sales: mark as UNPAID with full balance due
             payment_status = 'UNPAID'
             amount_paid = 0
             balance_due = cart_total['grand_total']
+
+            # Check credit limit if customer exists
+            if customer:
+                current_balance = customer.credit_balance or 0
+                credit_limit = customer.credit_limit or 0
+                new_balance = current_balance + balance_due
+
+                if credit_limit > 0 and new_balance > credit_limit:
+                    # Credit limit exceeded - warn but allow (configurable)
+                    credit_warning = f"Credit limit exceeded! Limit: Rs.{credit_limit:.2f}, Current: Rs.{current_balance:.2f}, New total: Rs.{new_balance:.2f}"
         else:
             # Cash/Card/UPI/Bank: mark as PAID
             payment_status = 'PAID'
@@ -191,6 +202,10 @@ def create_invoice():
                         invoice.id
                     )
 
+        # Update customer credit balance for credit sales
+        if payment_mode == 'CREDIT' and customer:
+            customer.credit_balance = (customer.credit_balance or 0) + balance_due
+
         db.session.commit()
 
         # Queue email notification if configured
@@ -199,14 +214,19 @@ def create_invoice():
         # Check if e-Way bill is required
         eway_required = cart_total['grand_total'] >= EWAY_BILL_THRESHOLD
 
-        return jsonify({
+        response = {
             'success': True,
             'invoice_id': invoice.id,
             'invoice_number': invoice.invoice_number,
             'message': f'Invoice {invoice.invoice_number} created successfully!',
             'eway_required': eway_required,
             'payment_status': payment_status
-        })
+        }
+
+        if credit_warning:
+            response['credit_warning'] = credit_warning
+
+        return jsonify(response)
 
     except ValueError as e:
         db.session.rollback()
@@ -379,7 +399,14 @@ def cancel_invoice(id):
                     invoice.id
                 )
 
+    # Reverse credit balance if it was a credit sale with unpaid balance
+    if invoice.customer_id and invoice.balance_due > 0:
+        customer = Customer.get_by_id(invoice.customer_id)
+        if customer:
+            customer.credit_balance = max(0, (customer.credit_balance or 0) - invoice.balance_due)
+
     invoice.cancel()
+    db.session.commit()
     flash(f'Invoice {invoice.invoice_number} has been cancelled', 'success')
     return redirect(url_for('billing.view_invoice', id=id))
 
@@ -461,7 +488,9 @@ def api_search_customers():
         'phone': c.phone,
         'gstin': c.gstin,
         'state_code': c.state_code,
-        'address': c.address
+        'address': c.address,
+        'credit_balance': c.credit_balance or 0,
+        'credit_limit': c.credit_limit or 0
     } for c in customers])
 
 

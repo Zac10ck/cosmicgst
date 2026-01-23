@@ -374,6 +374,29 @@ class BillingCart {
     selectCustomer(customer) {
         this.customer = customer;
         document.getElementById('customer-search').value = customer.name;
+
+        // Check credit status
+        let creditWarning = '';
+        if (customer.credit_limit > 0) {
+            const usedPercent = (customer.credit_balance / customer.credit_limit) * 100;
+            if (customer.credit_balance >= customer.credit_limit) {
+                creditWarning = `<div class="alert alert-danger py-1 mt-2 mb-0 small">
+                    <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                    <strong>Credit Limit Exceeded!</strong><br>
+                    Balance: Rs.${customer.credit_balance.toFixed(2)} / Limit: Rs.${customer.credit_limit.toFixed(2)}
+                </div>`;
+            } else if (usedPercent >= 80) {
+                creditWarning = `<div class="alert alert-warning py-1 mt-2 mb-0 small">
+                    <i class="bi bi-exclamation-circle me-1"></i>
+                    Credit ${usedPercent.toFixed(0)}% used: Rs.${customer.credit_balance.toFixed(2)} / Rs.${customer.credit_limit.toFixed(2)}
+                </div>`;
+            }
+        } else if (customer.credit_balance > 0) {
+            creditWarning = `<div class="alert alert-secondary py-1 mt-2 mb-0 small">
+                Outstanding: Rs.${customer.credit_balance.toFixed(2)}
+            </div>`;
+        }
+
         document.getElementById('selected-customer-info').innerHTML = `
             <div class="alert alert-info py-2 mb-0">
                 <strong>${this.escapeHtml(customer.name)}</strong>
@@ -381,6 +404,7 @@ class BillingCart {
                 ${customer.gstin ? `<br><small>GSTIN: ${this.escapeHtml(customer.gstin)}</small>` : ''}
                 <button type="button" class="btn-close btn-sm float-end" onclick="cart.clearCustomer()"></button>
             </div>
+            ${creditWarning}
         `;
         this.hideCustomerResults();
         this.calculateTotals(); // Recalculate for state-based GST
@@ -639,6 +663,9 @@ class BillingCart {
             if (result.success) {
                 // Show success message with payment status
                 let message = result.message;
+                if (result.credit_warning) {
+                    message += '\n\n⚠️ WARNING: ' + result.credit_warning;
+                }
                 if (result.payment_status === 'UNPAID') {
                     message += '\n\nPayment Status: UNPAID (Credit Sale)';
                 }

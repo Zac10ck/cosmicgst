@@ -51,9 +51,9 @@ try:
 
         # Add new columns to existing tables (for migrations)
         migrations = [
-            # Invoice table - B2B/B2C fields
-            ('invoice', 'supply_type', "VARCHAR(10) DEFAULT 'B2C'"),
-            ('invoice', 'customer_gstin', "VARCHAR(15) DEFAULT ''"),
+            # Invoice table - B2B/B2C fields (table name is 'invoices')
+            ('invoices', 'supply_type', "VARCHAR(10) DEFAULT 'B2C'"),
+            ('invoices', 'customer_gstin', "VARCHAR(15) DEFAULT ''"),
             # Company table - admin notification email
             ('company', 'admin_notification_email', "VARCHAR(200) DEFAULT ''"),
         ]

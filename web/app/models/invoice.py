@@ -39,6 +39,10 @@ class Invoice(db.Model):
     transporter_id = db.Column(db.String(20), default='')
     eway_bill_number = db.Column(db.String(20), default='')
 
+    # B2B/B2C classification (GST compliance)
+    supply_type = db.Column(db.String(10), default='B2C')  # B2B or B2C
+    customer_gstin = db.Column(db.String(15), default='')  # Customer GSTIN at invoice time
+
     # Relationships
     items = db.relationship('InvoiceItem', backref='invoice', lazy='dynamic',
                            cascade='all, delete-orphan')
@@ -125,6 +129,13 @@ class Invoice(db.Model):
             'payment_mode': self.payment_mode,
             'payment_status': self.payment_status,
             'is_cancelled': self.is_cancelled,
+            'supply_type': self.supply_type,
+            'customer_gstin': self.customer_gstin,
+            'vehicle_number': self.vehicle_number,
+            'transport_mode': self.transport_mode,
+            'transport_distance': self.transport_distance,
+            'transporter_id': self.transporter_id,
+            'eway_bill_number': self.eway_bill_number,
             'items': [item.to_dict() for item in self.items]
         }
 

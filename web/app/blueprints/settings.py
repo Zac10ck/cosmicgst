@@ -137,6 +137,7 @@ def email():
             company.smtp_password = smtp_password
         company.smtp_use_tls = request.form.get('smtp_use_tls') == '1'
         company.email_from = request.form.get('email_from', '').strip()
+        company.admin_notification_email = request.form.get('admin_notification_email', '').strip()
 
         company.save()
         flash('Email settings saved successfully', 'success')

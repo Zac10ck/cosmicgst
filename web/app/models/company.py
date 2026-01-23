@@ -32,6 +32,7 @@ class Company(db.Model):
     smtp_password = db.Column(db.String(200), default='')
     smtp_use_tls = db.Column(db.Boolean, default=True)
     email_from = db.Column(db.String(200), default='')
+    admin_notification_email = db.Column(db.String(200), default='')  # Receive invoice notifications
 
     @classmethod
     def get(cls):

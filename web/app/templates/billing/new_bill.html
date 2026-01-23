@@ -143,6 +143,49 @@
             </div>
         </div>
 
+        <!-- E-Way Bill Details (Collapsible) -->
+        <div class="card mb-3">
+            <div class="card-header" data-bs-toggle="collapse" data-bs-target="#ewayBillSection"
+                 style="cursor: pointer;" aria-expanded="false">
+                <i class="bi bi-truck me-1"></i>E-Way Bill Details
+                <span class="badge bg-warning ms-2" id="eway-threshold-badge" style="display: none;">
+                    Required (> Rs.{{ eway_threshold|default(50000) }})
+                </span>
+                <i class="bi bi-chevron-down float-end"></i>
+            </div>
+            <div class="collapse" id="ewayBillSection">
+                <div class="card-body">
+                    <div class="row g-3">
+                        <div class="col-12">
+                            <label class="form-label">Transport Mode</label>
+                            <select class="form-select" id="transport-mode">
+                                {% for value, label in transport_modes %}
+                                <option value="{{ value }}">{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Vehicle Number</label>
+                            <input type="text" class="form-control text-uppercase" id="vehicle-number"
+                                   placeholder="KL-01-AB-1234">
+                            <small class="text-muted">Format: KL-01-AB-1234</small>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Transport Distance (km)</label>
+                            <input type="number" class="form-control" id="transport-distance"
+                                   min="0" value="0" placeholder="Distance in km">
+                            <small class="text-muted" id="validity-info"></small>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Transporter ID (GSTIN)</label>
+                            <input type="text" class="form-control text-uppercase" id="transporter-id"
+                                   placeholder="Optional - Transporter's GSTIN">
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- Payment & Submit -->
         <div class="card">
             <div class="card-header">

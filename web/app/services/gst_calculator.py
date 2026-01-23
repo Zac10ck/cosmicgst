@@ -71,62 +71,119 @@ class GSTCalculator:
 
     def calculate_cart(self, items, buyer_state_code=None, discount=0):
         """
-        Calculate totals for entire cart
+        Calculate totals for entire cart with GST-compliant discount handling.
+
+        IMPORTANT: Discount is applied BEFORE tax calculation (GST compliant).
+        The discount is distributed proportionally across items based on their
+        line totals, and tax is calculated on the discounted amounts.
 
         Args:
             items: List of dicts with product_id, product_name, hsn_code, qty, unit, rate, gst_rate
             buyer_state_code: Buyer's state code
-            discount: Discount amount (flat)
+            discount: Discount amount (flat) - applied before tax
 
         Returns:
             Dictionary with all totals and item details
         """
-        subtotal = 0
+        discount = float(discount) if discount else 0
+
+        # Input validation
+        if discount < 0:
+            raise ValueError("Discount cannot be negative")
+
+        # First pass: Calculate raw subtotal (before discount) for pro-rata distribution
+        raw_subtotal = 0
+        for item in items:
+            qty = float(item.get('qty', 0))
+            rate = float(item.get('rate', 0))
+            if qty <= 0:
+                raise ValueError(f"Quantity must be greater than 0 for {item.get('product_name', 'item')}")
+            if rate < 0:
+                raise ValueError(f"Rate cannot be negative for {item.get('product_name', 'item')}")
+            raw_subtotal += qty * rate
+
+        # Validate discount doesn't exceed subtotal
+        if discount > raw_subtotal:
+            raise ValueError(f"Discount (₹{discount:.2f}) cannot exceed subtotal (₹{raw_subtotal:.2f})")
+
+        # Calculate discount ratio for pro-rata distribution
+        discount_ratio = discount / raw_subtotal if raw_subtotal > 0 else 0
+
+        # Second pass: Apply discount and calculate tax
+        subtotal = 0  # This will be the discounted subtotal
         cgst_total = 0
         sgst_total = 0
         igst_total = 0
-
         item_details = []
 
         for item in items:
-            tax = self.calculate_item_tax(
-                qty=float(item.get('qty', 0)),
-                rate=float(item.get('rate', 0)),
-                gst_rate=float(item.get('gst_rate', 0)),
-                buyer_state_code=buyer_state_code
+            qty = float(item.get('qty', 0))
+            rate = float(item.get('rate', 0))
+            gst_rate = float(item.get('gst_rate', 0))
+
+            # Calculate line total before discount
+            line_total = qty * rate
+
+            # Calculate proportional discount for this item
+            item_discount = round(line_total * discount_ratio, 2)
+
+            # Discounted taxable value (this is what GST is calculated on)
+            discounted_taxable_value = round(line_total - item_discount, 2)
+
+            # Calculate tax on discounted value
+            is_inter_state = (
+                buyer_state_code is not None and
+                buyer_state_code != self.seller_state_code
             )
 
-            subtotal += tax['taxable_value']
-            cgst_total += tax['cgst']
-            sgst_total += tax['sgst']
-            igst_total += tax['igst']
+            if is_inter_state:
+                # Inter-state: IGST only
+                igst_amount = round(discounted_taxable_value * gst_rate / 100, 2)
+                cgst_amount = 0
+                sgst_amount = 0
+            else:
+                # Intra-state: CGST + SGST (each half of GST rate)
+                igst_amount = 0
+                cgst_rate_half = gst_rate / 2
+                cgst_amount = round(discounted_taxable_value * cgst_rate_half / 100, 2)
+                sgst_amount = round(discounted_taxable_value * cgst_rate_half / 100, 2)
+
+            total_item_tax = cgst_amount + sgst_amount + igst_amount
+            item_total = discounted_taxable_value + total_item_tax
+
+            subtotal += discounted_taxable_value
+            cgst_total += cgst_amount
+            sgst_total += sgst_amount
+            igst_total += igst_amount
 
             item_details.append({
                 'product_id': item.get('product_id'),
                 'product_name': item.get('product_name', ''),
                 'hsn_code': item.get('hsn_code', ''),
-                'qty': float(item.get('qty', 0)),
+                'qty': qty,
                 'unit': item.get('unit', 'NOS'),
-                'rate': float(item.get('rate', 0)),
-                'gst_rate': float(item.get('gst_rate', 0)),
-                'taxable_value': tax['taxable_value'],
-                'cgst': tax['cgst'],
-                'sgst': tax['sgst'],
-                'igst': tax['igst'],
-                'total': tax['total']
+                'rate': rate,
+                'gst_rate': gst_rate,
+                'taxable_value': discounted_taxable_value,  # After discount
+                'item_discount': item_discount,  # Discount applied to this item
+                'cgst': cgst_amount,
+                'sgst': sgst_amount,
+                'igst': igst_amount,
+                'total': round(item_total, 2)
             })
 
         total_tax = cgst_total + sgst_total + igst_total
-        grand_total = subtotal + total_tax - float(discount)
+        grand_total = subtotal + total_tax  # No discount subtraction here - already applied
 
         return {
             'items': item_details,
-            'subtotal': round(subtotal, 2),
+            'subtotal': round(subtotal, 2),  # This is now the discounted subtotal
+            'raw_subtotal': round(raw_subtotal, 2),  # Original subtotal before discount
             'cgst_total': round(cgst_total, 2),
             'sgst_total': round(sgst_total, 2),
             'igst_total': round(igst_total, 2),
             'total_tax': round(total_tax, 2),
-            'discount': round(float(discount), 2),
+            'discount': round(discount, 2),
             'grand_total': round(grand_total, 2),
             'is_inter_state': buyer_state_code is not None and buyer_state_code != self.seller_state_code
         }

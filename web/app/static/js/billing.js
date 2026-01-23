@@ -16,6 +16,9 @@ class BillingCart {
             grand_total: 0
         };
 
+        // E-Way bill threshold (Rs. 50,000)
+        this.EWAY_THRESHOLD = 50000;
+
         this.init();
     }
 
@@ -80,6 +83,30 @@ class BillingCart {
         const clearBtn = document.getElementById('clear-cart');
         if (clearBtn) {
             clearBtn.addEventListener('click', () => this.clearCart());
+        }
+
+        // E-Way bill transport distance - calculate validity
+        const distanceInput = document.getElementById('transport-distance');
+        if (distanceInput) {
+            distanceInput.addEventListener('input', (e) => {
+                this.updateEwayValidity(parseInt(e.target.value) || 0);
+            });
+        }
+
+        // Vehicle number - format to uppercase
+        const vehicleInput = document.getElementById('vehicle-number');
+        if (vehicleInput) {
+            vehicleInput.addEventListener('input', (e) => {
+                e.target.value = e.target.value.toUpperCase();
+            });
+        }
+
+        // Transporter ID - format to uppercase
+        const transporterInput = document.getElementById('transporter-id');
+        if (transporterInput) {
+            transporterInput.addEventListener('input', (e) => {
+                e.target.value = e.target.value.toUpperCase();
+            });
         }
     }
 
@@ -392,6 +419,40 @@ class BillingCart {
         if (itemCount) {
             itemCount.textContent = this.items.length;
         }
+
+        // Check e-Way bill requirement
+        this.checkEwayBillRequired();
+    }
+
+    checkEwayBillRequired() {
+        const badge = document.getElementById('eway-threshold-badge');
+        const section = document.getElementById('ewayBillSection');
+
+        if (!badge) return;
+
+        if (this.totals.grand_total >= this.EWAY_THRESHOLD) {
+            badge.style.display = 'inline-block';
+            // Auto-expand the e-Way bill section
+            if (section && !section.classList.contains('show')) {
+                const bsCollapse = new bootstrap.Collapse(section, { show: true });
+            }
+        } else {
+            badge.style.display = 'none';
+        }
+    }
+
+    updateEwayValidity(distanceKm) {
+        const validityInfo = document.getElementById('validity-info');
+        if (!validityInfo) return;
+
+        if (distanceKm > 0) {
+            // Calculate validity: 1 day per 100 km (or part thereof)
+            const validityDays = Math.max(1, Math.ceil(distanceKm / 100));
+            validityInfo.textContent = `E-Way bill validity: ${validityDays} day(s)`;
+            validityInfo.className = 'text-info';
+        } else {
+            validityInfo.textContent = '';
+        }
     }
 
     async submitInvoice() {
@@ -401,6 +462,19 @@ class BillingCart {
         }
 
         const paymentMode = document.getElementById('payment-mode').value;
+
+        // Get e-Way bill transport details
+        const transportMode = document.getElementById('transport-mode')?.value || 'Road';
+        const vehicleNumber = document.getElementById('vehicle-number')?.value || '';
+        const transportDistance = parseInt(document.getElementById('transport-distance')?.value) || 0;
+        const transporterId = document.getElementById('transporter-id')?.value || '';
+
+        // Warn if e-Way bill is required but no vehicle number provided
+        if (this.totals.grand_total >= this.EWAY_THRESHOLD && !vehicleNumber) {
+            if (!confirm('E-Way bill is required for invoices over Rs. ' + this.EWAY_THRESHOLD.toLocaleString() + '.\n\nVehicle number is not provided. Continue anyway?')) {
+                return;
+            }
+        }
 
         try {
             const response = await fetch('/billing/create', {
@@ -415,15 +489,27 @@ class BillingCart {
                     customer_name: this.customer?.name || 'Walk-in Customer',
                     buyer_state_code: this.customer?.state_code || null,
                     discount: this.discount,
-                    payment_mode: paymentMode
+                    payment_mode: paymentMode,
+                    // E-Way bill transport details
+                    transport_mode: transportMode,
+                    vehicle_number: vehicleNumber,
+                    transport_distance: transportDistance,
+                    transporter_id: transporterId
                 })
             });
 
             const result = await response.json();
 
             if (result.success) {
-                // Show success and redirect to invoice
-                alert(result.message);
+                // Show success message with payment status
+                let message = result.message;
+                if (result.payment_status === 'UNPAID') {
+                    message += '\n\nPayment Status: UNPAID (Credit Sale)';
+                }
+                if (result.eway_required) {
+                    message += '\n\nNote: E-Way bill is required for this invoice.';
+                }
+                alert(message);
                 window.location.href = `/billing/invoices/${result.invoice_id}`;
             } else {
                 alert('Error: ' + (result.error || 'Failed to create invoice'));

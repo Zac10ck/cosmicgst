@@ -265,6 +265,102 @@
             </div>
         </div>
 
+        <!-- E-Way Bill Section (only show if invoice >= Rs.50,000) -->
+        {% if invoice.grand_total >= 50000 and not invoice.is_cancelled %}
+        <div class="eway-bill-section mt-4 no-print">
+            <div class="eway-bill-box">
+                <div class="eway-bill-header">
+                    <i class="bi bi-truck me-2"></i>E-Way Bill
+                    <span class="badge bg-warning ms-2">Required (Invoice > Rs.50,000)</span>
+                </div>
+                <div class="eway-bill-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <!-- E-Way Bill Number -->
+                            {% if invoice.eway_bill_number %}
+                            <div class="eway-number-display">
+                                <label class="eway-label">E-Way Bill Number</label>
+                                <div class="eway-number">{{ invoice.eway_bill_number }}</div>
+                            </div>
+                            {% else %}
+                            <div class="eway-number-input">
+                                <label class="form-label">Enter E-Way Bill Number</label>
+                                <div class="input-group">
+                                    <input type="text" class="form-control" id="eway-bill-input"
+                                           placeholder="12-digit e-Way bill number" maxlength="12">
+                                    <button class="btn btn-success" type="button" onclick="saveEwayBillNumber()">
+                                        <i class="bi bi-check-circle"></i> Save
+                                    </button>
+                                </div>
+                                <small class="text-muted">Enter after generating on GST portal</small>
+                            </div>
+                            {% endif %}
+
+                            <!-- Transport Details -->
+                            {% if invoice.transport_distance or invoice.vehicle_number %}
+                            <div class="transport-details mt-3">
+                                <label class="eway-label">Transport Details</label>
+                                <table class="transport-table">
+                                    <tr>
+                                        <td>Mode:</td>
+                                        <td>{{ invoice.transport_mode or 'Road' }}</td>
+                                    </tr>
+                                    {% if invoice.vehicle_number %}
+                                    <tr>
+                                        <td>Vehicle:</td>
+                                        <td>{{ invoice.vehicle_number }}</td>
+                                    </tr>
+                                    {% endif %}
+                                    {% if invoice.transport_distance %}
+                                    <tr>
+                                        <td>Distance:</td>
+                                        <td>{{ invoice.transport_distance }} km</td>
+                                    </tr>
+                                    {% endif %}
+                                    {% if invoice.transporter_id %}
+                                    <tr>
+                                        <td>Transporter ID:</td>
+                                        <td>{{ invoice.transporter_id }}</td>
+                                    </tr>
+                                    {% endif %}
+                                </table>
+                            </div>
+                            {% endif %}
+                        </div>
+                        <div class="col-md-6">
+                            <!-- E-Way Bill Actions -->
+                            <div class="eway-actions">
+                                <label class="eway-label">Actions</label>
+                                <div class="d-grid gap-2">
+                                    <a href="{{ url_for('billing.export_eway_bill_json', id=invoice.id) }}"
+                                       class="btn btn-outline-primary" download>
+                                        <i class="bi bi-file-earmark-code me-1"></i>Download JSON for Portal
+                                    </a>
+                                    <a href="https://ewaybillgst.gov.in" target="_blank"
+                                       class="btn btn-outline-secondary">
+                                        <i class="bi bi-box-arrow-up-right me-1"></i>Open GST E-Way Bill Portal
+                                    </a>
+                                </div>
+                            </div>
+
+                            <!-- Validity Info -->
+                            {% if invoice.transport_distance %}
+                            {% set validity_days = ((invoice.transport_distance + 99) // 100) or 1 %}
+                            <div class="validity-info mt-3">
+                                <label class="eway-label">Validity</label>
+                                <div class="validity-badge">
+                                    <i class="bi bi-clock me-1"></i>{{ validity_days }} day(s) from generation
+                                </div>
+                                <small class="text-muted">Based on {{ invoice.transport_distance }} km distance</small>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
         <!-- Invoice Footer -->
         <div class="invoice-footer">
             <div class="row">
@@ -603,6 +699,67 @@
     font-size: 1rem;
 }
 
+/* E-Way Bill Section */
+.eway-bill-section {
+    margin-top: 25px;
+}
+
+.eway-bill-box {
+    border: 2px solid #ffc107;
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.eway-bill-header {
+    background: #ffc107;
+    color: #212529;
+    font-weight: 600;
+    padding: 12px 15px;
+}
+
+.eway-bill-body {
+    padding: 20px;
+    background: #fffbeb;
+}
+
+.eway-label {
+    font-weight: 600;
+    color: #666;
+    font-size: 0.85rem;
+    display: block;
+    margin-bottom: 5px;
+}
+
+.eway-number-display .eway-number {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #28a745;
+    font-family: monospace;
+}
+
+.transport-table {
+    font-size: 0.9rem;
+    width: 100%;
+}
+
+.transport-table td {
+    padding: 4px 0;
+}
+
+.transport-table td:first-child {
+    color: #666;
+    width: 100px;
+}
+
+.validity-badge {
+    background: #17a2b8;
+    color: white;
+    padding: 8px 15px;
+    border-radius: 6px;
+    display: inline-block;
+    font-weight: 600;
+}
+
 /* Print Styles */
 @media print {
     .no-print {
@@ -656,4 +813,43 @@
     }
 }
 </style>
+
+<script>
+function saveEwayBillNumber() {
+    const input = document.getElementById('eway-bill-input');
+    const ewayNumber = input.value.trim();
+
+    if (!ewayNumber) {
+        alert('Please enter the e-Way bill number');
+        return;
+    }
+
+    if (!/^\d{12}$/.test(ewayNumber)) {
+        alert('E-Way bill number must be exactly 12 digits');
+        return;
+    }
+
+    fetch('{{ url_for("billing.save_eway_bill_number", id=invoice.id) }}', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': '{{ csrf_token() }}'
+        },
+        body: JSON.stringify({ eway_bill_number: ewayNumber })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert(data.message);
+            location.reload();
+        } else {
+            alert('Error: ' + (data.error || 'Failed to save'));
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Error saving e-Way bill number');
+    });
+}
+</script>
 {% endblock %}

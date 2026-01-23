@@ -63,6 +63,27 @@
                         </div>
                     </div>
                 </div>
+            </div>
+
+            <!-- Invoice Email Notifications -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <i class="bi bi-bell me-1"></i>Invoice Email Notifications
+                </div>
+                <div class="card-body">
+                    <div class="row g-3">
+                        <div class="col-12">
+                            <label class="form-label">Admin Notification Email</label>
+                            <input type="email" class="form-control" name="admin_notification_email"
+                                   value="{{ company.admin_notification_email if company else '' }}"
+                                   placeholder="admin@yourcompany.com">
+                            <small class="text-muted">
+                                When set, all new invoices will be automatically sent to this email address with PDF attachment.
+                                Leave empty to disable automatic invoice notifications.
+                            </small>
+                        </div>
+                    </div>
+                </div>
                 <div class="card-footer">
                     <button type="submit" class="btn btn-primary">
                         <i class="bi bi-check-circle me-1"></i>Save Settings

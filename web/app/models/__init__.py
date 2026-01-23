@@ -7,11 +7,7 @@ from app.models.customer import Customer
 from app.models.invoice import Invoice, InvoiceItem, InvoicePayment
 from app.models.quotation import Quotation, QuotationItem
 from app.models.credit_note import CreditNote, CreditNoteItem
-
-# Additional models will be imported as they are created
-# from app.models.held_bill import HeldBill
-# from app.models.app_settings import AppSettings
-# from app.models.email_queue import EmailQueueEntry
+from app.models.email_queue import EmailQueue
 
 __all__ = [
     'User',
@@ -27,4 +23,5 @@ __all__ = [
     'QuotationItem',
     'CreditNote',
     'CreditNoteItem',
+    'EmailQueue',
 ]

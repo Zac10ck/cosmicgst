@@ -148,25 +148,30 @@ def email():
 
 @settings_bp.route('/email/test', methods=['GET', 'POST'])
 @login_required
-@admin_required
 def test_email():
     """Test email configuration"""
-    # Handle GET requests - redirect to email settings
-    if request.method == 'GET':
-        flash('Please use the test email form on this page', 'info')
-        return redirect(url_for('settings.email'))
-
-    company = Company.get()
-    if not company or not company.smtp_server:
-        flash('Please configure email settings first', 'error')
-        return redirect(url_for('settings.email'))
-
-    test_to = request.form.get('test_email', '').strip()
-    if not test_to:
-        flash('Please enter a test email address', 'error')
-        return redirect(url_for('settings.email'))
-
     try:
+        # Handle GET requests - redirect to email settings
+        if request.method == 'GET':
+            flash('Please use the test email form on this page', 'info')
+            return redirect(url_for('settings.email'))
+
+        # Check admin
+        if hasattr(current_user, 'is_admin') and callable(current_user.is_admin):
+            if not current_user.is_admin():
+                flash('Admin access required', 'error')
+                return redirect(url_for('settings.email'))
+
+        company = Company.get()
+        if not company or not company.smtp_server:
+            flash('Please configure email settings first', 'error')
+            return redirect(url_for('settings.email'))
+
+        test_to = request.form.get('test_email', '').strip()
+        if not test_to:
+            flash('Please enter a test email address', 'error')
+            return redirect(url_for('settings.email'))
+
         import smtplib
         from email.mime.text import MIMEText
         from email.mime.multipart import MIMEMultipart
@@ -198,7 +203,7 @@ def test_email():
 
         flash(f'Test email sent successfully to {test_to}', 'success')
     except Exception as e:
-        flash(f'Failed to send test email: {str(e)}', 'error')
+        flash(f'Error: {str(e)}', 'error')
 
     return redirect(url_for('settings.email'))
 

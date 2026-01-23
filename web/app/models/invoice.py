@@ -129,13 +129,13 @@ class Invoice(db.Model):
             'payment_mode': self.payment_mode,
             'payment_status': self.payment_status,
             'is_cancelled': self.is_cancelled,
-            'supply_type': self.supply_type,
-            'customer_gstin': self.customer_gstin,
-            'vehicle_number': self.vehicle_number,
-            'transport_mode': self.transport_mode,
-            'transport_distance': self.transport_distance,
-            'transporter_id': self.transporter_id,
-            'eway_bill_number': self.eway_bill_number,
+            'supply_type': getattr(self, 'supply_type', 'B2C'),
+            'customer_gstin': getattr(self, 'customer_gstin', ''),
+            'vehicle_number': getattr(self, 'vehicle_number', ''),
+            'transport_mode': getattr(self, 'transport_mode', 'Road'),
+            'transport_distance': getattr(self, 'transport_distance', 0),
+            'transporter_id': getattr(self, 'transporter_id', ''),
+            'eway_bill_number': getattr(self, 'eway_bill_number', ''),
             'items': [item.to_dict() for item in self.items]
         }
 

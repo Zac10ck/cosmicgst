@@ -54,5 +54,30 @@ class Company(db.Model):
         db.session.add(self)
         db.session.commit()
 
+    def to_dict(self):
+        """Convert to dictionary for backup/export"""
+        return {
+            'id': self.id,
+            'name': self.name,
+            'address': self.address,
+            'gstin': self.gstin,
+            'state_code': self.state_code,
+            'phone': self.phone,
+            'email': self.email,
+            'pan': self.pan,
+            'logo_path': self.logo_path,
+            'bank_name': self.bank_name,
+            'bank_account': self.bank_account,
+            'bank_ifsc': self.bank_ifsc,
+            'invoice_prefix': self.invoice_prefix,
+            'invoice_terms': self.invoice_terms,
+            'smtp_server': self.smtp_server,
+            'smtp_port': self.smtp_port,
+            'smtp_username': self.smtp_username,
+            'smtp_use_tls': self.smtp_use_tls,
+            'email_from': self.email_from,
+            'admin_notification_email': getattr(self, 'admin_notification_email', ''),
+        }
+
     def __repr__(self):
         return f'<Company {self.name}>'

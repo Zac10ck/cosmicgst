@@ -647,22 +647,8 @@ def check_eway_bill_required(id):
 @login_required
 def eway_bill_dashboard():
     """E-Way Bill dashboard showing all e-Way bills with expiry status"""
-    from datetime import datetime
-
-    # Return minimal working template with empty data
-    return render_template(
-        'billing/eway_dashboard.html',
-        expired=[],
-        expiring_soon=[],
-        valid=[],
-        pending=[],
-        total_expired=0,
-        total_expiring=0,
-        total_valid=0,
-        total_pending=0,
-        state_codes={},
-        now=datetime.utcnow()
-    )
+    # Ultra minimal test - just return text
+    return "E-Way Dashboard works! Template test pending."
 
 
 @billing_bp.route('/invoices/<int:id>/eway-bill/renew', methods=['POST'])

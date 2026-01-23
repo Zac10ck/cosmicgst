@@ -96,6 +96,52 @@ try:
         else:
             print("Admin user already exists")
 
+        # Create default categories for Cosmic Surgical if none exist
+        from app.models.category import Category
+        existing_categories = Category.query.count()
+        if existing_categories == 0:
+            categories = [
+                ('Surgical Instruments', 'Scalpels, forceps, scissors, retractors, clamps, and surgical tools'),
+                ('Diagnostic Equipment', 'Stethoscopes, sphygmomanometers, otoscopes, ophthalmoscopes'),
+                ('Wound Care', 'Dressings, bandages, gauze, surgical tape, sutures'),
+                ('Sterilization Supplies', 'Sterilization trays, surgical drapes, indicators, wraps'),
+                ('PPE & Safety', 'Gloves, masks, gowns, aprons, face shields, shoe covers'),
+                ('Consumables', 'Syringes, needles, catheters, IV sets, tubes, cannulas'),
+                ('Orthopedic Equipment', 'Braces, supports, splints, casts, traction equipment'),
+                ('Monitoring Equipment', 'BP monitors, pulse oximeters, ECG devices, thermometers'),
+                ('Mobility Aids', 'Wheelchairs, walkers, crutches, hospital beds, stretchers'),
+                ('Disinfectants', 'Antiseptics, disinfectants, hand sanitizers, cleaning solutions'),
+                ('Respiratory Care', 'Nebulizers, oxygen equipment, CPAP, respiratory masks'),
+                ('Laboratory Supplies', 'Test tubes, slides, specimen containers, lab equipment'),
+            ]
+            for name, desc in categories:
+                cat = Category(name=name, description=desc, is_active=True)
+                db.session.add(cat)
+            db.session.commit()
+            print(f"Created {len(categories)} surgical equipment categories!")
+        else:
+            print(f"Categories already exist ({existing_categories} found)")
+
+        # Create default company info for Cosmic Surgical if not exists
+        from app.models.company import Company
+        company = Company.query.first()
+        if not company:
+            company = Company(
+                name='Cosmic Surgical',
+                address='Kerala, India',
+                phone='',
+                email='info@cosmicsurgical.com',
+                gstin='',
+                state_code='32',
+                invoice_prefix='CS',
+                invoice_terms='Thank you for your business! All surgical equipment sold is subject to manufacturer warranty. Returns accepted within 7 days for unopened items only.'
+            )
+            db.session.add(company)
+            db.session.commit()
+            print("Company info created for Cosmic Surgical!")
+        else:
+            print("Company info already exists")
+
     print("Database initialized successfully!")
 except Exception as e:
     print(f"ERROR: {e}")

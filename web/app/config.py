@@ -9,18 +9,19 @@ class Config:
     SQLALCHEMY_TRACK_MODIFICATIONS = False
 
     # Application settings
-    APP_NAME = "GST Billing"
+    APP_NAME = "Cosmic Surgical"
     APP_VERSION = "2.0.0"
 
     # GST settings
     GST_RATES = [0, 5, 12, 18, 28]
     DEFAULT_GST_RATE = 18.0
     FINANCIAL_YEAR_START_MONTH = 4  # April
+    DEFAULT_STATE_CODE = "32"  # Kerala
 
     # Invoice settings
-    INVOICE_PREFIX = "INV"
-    QUOTATION_PREFIX = "QTN"
-    CREDIT_NOTE_PREFIX = "CN"
+    INVOICE_PREFIX = "CS"
+    QUOTATION_PREFIX = "CSQ"
+    CREDIT_NOTE_PREFIX = "CSCN"
 
     # Payment modes
     PAYMENT_MODES = ["CASH", "UPI", "CARD", "CREDIT", "BANK TRANSFER"]

@@ -1,4 +1,19 @@
-/* GST Billing Web - Custom Styles */
+/* Cosmic Surgical - GST Billing Custom Styles */
+
+/* Cosmic Surgical Theme Colors
+   Primary: #1a5f7a (Teal Blue)
+   Secondary: #086972 (Dark Teal)
+   Accent: #57c5b6 (Light Teal)
+   Medical Green: #198754
+*/
+
+:root {
+    --cosmic-primary: #1a5f7a;
+    --cosmic-secondary: #086972;
+    --cosmic-accent: #57c5b6;
+    --cosmic-light: #e8f4f8;
+    --cosmic-gradient: linear-gradient(135deg, #1a5f7a 0%, #086972 100%);
+}
 
 /* Sidebar */
 @media (min-width: 768px) {
@@ -41,14 +56,14 @@
 }
 
 .sidebar .nav-link:hover {
-    color: #0d6efd;
-    background-color: rgba(13, 110, 253, 0.1);
+    color: var(--cosmic-primary);
+    background-color: var(--cosmic-light);
 }
 
 .sidebar .nav-link.active {
-    color: #0d6efd;
-    background-color: rgba(13, 110, 253, 0.1);
-    border-left-color: #0d6efd;
+    color: var(--cosmic-primary);
+    background-color: var(--cosmic-light);
+    border-left-color: var(--cosmic-primary);
 }
 
 .sidebar .nav-link i {
@@ -86,11 +101,11 @@
     border-left: 4px solid;
 }
 
-.stat-card.primary { border-left-color: #0d6efd; }
+.stat-card.primary { border-left-color: var(--cosmic-primary); }
 .stat-card.success { border-left-color: #198754; }
 .stat-card.warning { border-left-color: #ffc107; }
 .stat-card.danger { border-left-color: #dc3545; }
-.stat-card.info { border-left-color: #0dcaf0; }
+.stat-card.info { border-left-color: var(--cosmic-accent); }
 
 .stat-card .stat-value {
     font-size: 2rem;
@@ -136,7 +151,7 @@
 }
 
 .login-card .card-header {
-    background: linear-gradient(135deg, #0d6efd, #0dcaf0);
+    background: var(--cosmic-gradient);
     color: white;
     text-align: center;
     padding: 2rem;
@@ -276,4 +291,66 @@
     .badge {
         border: 1px solid currentColor !important;
     }
+}
+
+/* Cosmic Surgical Theme Overrides */
+
+/* Primary button with Cosmic theme */
+.btn-primary {
+    background-color: var(--cosmic-primary);
+    border-color: var(--cosmic-primary);
+}
+
+.btn-primary:hover, .btn-primary:focus {
+    background-color: var(--cosmic-secondary);
+    border-color: var(--cosmic-secondary);
+}
+
+.btn-outline-primary {
+    color: var(--cosmic-primary);
+    border-color: var(--cosmic-primary);
+}
+
+.btn-outline-primary:hover {
+    background-color: var(--cosmic-primary);
+    border-color: var(--cosmic-primary);
+    color: white;
+}
+
+/* Links */
+a {
+    color: var(--cosmic-primary);
+}
+
+a:hover {
+    color: var(--cosmic-secondary);
+}
+
+/* Table primary header */
+.table-primary {
+    background-color: var(--cosmic-light) !important;
+}
+
+/* Badge primary */
+.badge.bg-primary {
+    background-color: var(--cosmic-primary) !important;
+}
+
+/* Card headers */
+.card-header.bg-primary {
+    background: var(--cosmic-gradient) !important;
+}
+
+/* Dashboard welcome card */
+.welcome-card {
+    background: var(--cosmic-gradient);
+    color: white;
+    border-radius: 0.5rem;
+}
+
+/* Medical/Surgical themed icons */
+.bi-hospital::before,
+.bi-heart-pulse::before,
+.bi-bandaid::before {
+    color: var(--cosmic-primary);
 }

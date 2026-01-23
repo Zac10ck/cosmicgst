@@ -328,6 +328,21 @@
                             {% endif %}
                         </div>
                         <div class="col-md-6">
+                            <!-- Step-by-Step Instructions -->
+                            {% if not invoice.eway_bill_number %}
+                            <div class="eway-instructions mb-3">
+                                <label class="eway-label">How to Generate E-Way Bill</label>
+                                <ol class="eway-steps">
+                                    <li><strong>Step 1:</strong> Click "Download JSON" below to get the data file</li>
+                                    <li><strong>Step 2:</strong> Go to <a href="https://ewaybillgst.gov.in" target="_blank">GST E-Way Bill Portal</a> and login</li>
+                                    <li><strong>Step 3:</strong> Navigate to "Generate New" > "E-Way Bill"</li>
+                                    <li><strong>Step 4:</strong> Upload the JSON file or enter details manually</li>
+                                    <li><strong>Step 5:</strong> Copy the 12-digit E-Way Bill number generated</li>
+                                    <li><strong>Step 6:</strong> Enter the number in the field on the left and save</li>
+                                </ol>
+                            </div>
+                            {% endif %}
+
                             <!-- E-Way Bill Actions -->
                             <div class="eway-actions">
                                 <label class="eway-label">Actions</label>
@@ -749,6 +764,32 @@
 .transport-table td:first-child {
     color: #666;
     width: 100px;
+}
+
+.eway-instructions {
+    background: #fff3cd;
+    padding: 12px;
+    border-radius: 6px;
+    border-left: 4px solid #ffc107;
+}
+
+.eway-steps {
+    margin: 0;
+    padding-left: 20px;
+    font-size: 0.85rem;
+}
+
+.eway-steps li {
+    margin-bottom: 6px;
+    line-height: 1.4;
+}
+
+.eway-steps li:last-child {
+    margin-bottom: 0;
+}
+
+.eway-steps a {
+    color: #0d6efd;
 }
 
 .validity-badge {

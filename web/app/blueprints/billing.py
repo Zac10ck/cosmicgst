@@ -107,6 +107,14 @@ def create_invoice():
             amount_paid = cart_total['grand_total']
             balance_due = 0
 
+        # Get GST options
+        is_reverse_charge = data.get('is_reverse_charge', False)
+
+        # Determine invoice type based on GST rates
+        # If all items have 0% GST, it's a Bill of Supply
+        all_zero_gst = all(item.get('gst_rate', 0) == 0 for item in items)
+        invoice_type = 'BILL_OF_SUPPLY' if all_zero_gst else 'TAX_INVOICE'
+
         # Get e-Way bill transport details
         transport_mode = data.get('transport_mode', 'Road')
         vehicle_number = data.get('vehicle_number', '').strip().upper()
@@ -132,6 +140,10 @@ def create_invoice():
             # B2B/B2C classification
             supply_type=supply_type,
             customer_gstin=customer_gstin,
+            # GST compliance fields
+            invoice_type=invoice_type,
+            is_reverse_charge=is_reverse_charge,
+            buyer_state_code=buyer_state_code,
             # E-Way bill transport details
             transport_mode=transport_mode,
             vehicle_number=vehicle_number,

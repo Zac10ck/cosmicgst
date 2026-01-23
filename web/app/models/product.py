@@ -10,7 +10,9 @@ class Product(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(200), nullable=False)
     barcode = db.Column(db.String(50), index=True, default='')
-    hsn_code = db.Column(db.String(20), default='')
+    hsn_code = db.Column(db.String(20), default='')  # HSN for goods
+    sac_code = db.Column(db.String(8), default='')  # SAC for services (6 digits starting with 99)
+    is_service = db.Column(db.Boolean, default=False)  # True for services, False for goods
     unit = db.Column(db.String(20), default='NOS')
     price = db.Column(db.Float, default=0.0)
     purchase_price = db.Column(db.Float, default=0.0)
@@ -86,6 +88,8 @@ class Product(db.Model):
             'name': self.name,
             'barcode': self.barcode,
             'hsn_code': self.hsn_code,
+            'sac_code': getattr(self, 'sac_code', ''),
+            'is_service': getattr(self, 'is_service', False),
             'unit': self.unit,
             'price': self.price,
             'purchase_price': self.purchase_price,
@@ -93,6 +97,12 @@ class Product(db.Model):
             'stock_qty': self.stock_qty,
             'category_id': self.category_id
         }
+
+    def get_tax_code(self):
+        """Get HSN or SAC code based on product type"""
+        if getattr(self, 'is_service', False):
+            return getattr(self, 'sac_code', '') or self.hsn_code
+        return self.hsn_code
 
     def __repr__(self):
         return f'<Product {self.name}>'

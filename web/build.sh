@@ -54,6 +54,17 @@ try:
             # Invoice table - B2B/B2C fields (table name is 'invoices')
             ('invoices', 'supply_type', "VARCHAR(10) DEFAULT 'B2C'"),
             ('invoices', 'customer_gstin', "VARCHAR(15) DEFAULT ''"),
+            # Invoice table - GST compliance fields
+            ('invoices', 'invoice_type', "VARCHAR(20) DEFAULT 'TAX_INVOICE'"),
+            ('invoices', 'is_reverse_charge', "BOOLEAN DEFAULT FALSE"),
+            ('invoices', 'buyer_state_code', "VARCHAR(2) DEFAULT ''"),
+            # Invoice table - E-Way bill status tracking
+            ('invoices', 'eway_bill_status', "VARCHAR(20) DEFAULT ''"),
+            ('invoices', 'eway_bill_generated_at', "TIMESTAMP NULL"),
+            ('invoices', 'eway_bill_valid_until', "TIMESTAMP NULL"),
+            # Product table - SAC code support
+            ('products', 'is_service', "BOOLEAN DEFAULT FALSE"),
+            ('products', 'sac_code', "VARCHAR(8) DEFAULT ''"),
             # Company table - admin notification email
             ('company', 'admin_notification_email', "VARCHAR(200) DEFAULT ''"),
         ]

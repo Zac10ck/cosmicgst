@@ -524,6 +524,253 @@ def export_gstr1():
     )
 
 
+# ==================== GSTR-3B Report ====================
+
+@reports_bp.route('/gstr3b')
+@login_required
+def gstr3b_report():
+    """GSTR-3B summary report - Monthly return filing summary"""
+    month = request.args.get('month', date.today().month, type=int)
+    year = request.args.get('year', date.today().year, type=int)
+
+    # Calculate date range for the month
+    start_date = date(year, month, 1)
+    if month == 12:
+        end_date = date(year + 1, 1, 1) - timedelta(days=1)
+    else:
+        end_date = date(year, month + 1, 1) - timedelta(days=1)
+
+    # Get all non-cancelled invoices for the month
+    invoices = Invoice.query.filter(
+        Invoice.invoice_date.between(start_date, end_date),
+        Invoice.is_cancelled == False
+    ).all()
+
+    # Get credit notes for the month
+    credit_notes = CreditNote.query.filter(
+        CreditNote.credit_note_date.between(start_date, end_date),
+        CreditNote.status != 'CANCELLED'
+    ).all()
+
+    # 3.1 Outward Supplies - Tax liability
+    # (a) Outward taxable supplies (other than zero rated, nil rated and exempted)
+    taxable_outward = {
+        'taxable_value': 0,
+        'igst': 0,
+        'cgst': 0,
+        'sgst': 0,
+        'cess': 0
+    }
+
+    # (b) Outward taxable supplies (zero rated)
+    zero_rated = {'taxable_value': 0, 'igst': 0}
+
+    # (c) Other outward supplies (nil rated, exempted)
+    exempt_nil = {'taxable_value': 0}
+
+    # (d) Inward supplies (liable to reverse charge)
+    reverse_charge = {
+        'taxable_value': 0,
+        'igst': 0,
+        'cgst': 0,
+        'sgst': 0,
+        'cess': 0
+    }
+
+    # Process invoices
+    for inv in invoices:
+        is_rcm = getattr(inv, 'is_reverse_charge', False)
+
+        if is_rcm:
+            # Reverse charge - goes to 3.1(d)
+            reverse_charge['taxable_value'] += inv.subtotal or 0
+            reverse_charge['igst'] += inv.igst_total or 0
+            reverse_charge['cgst'] += inv.cgst_total or 0
+            reverse_charge['sgst'] += inv.sgst_total or 0
+        else:
+            # Check if all items are 0% GST (exempt/nil rated)
+            items = list(inv.items) if hasattr(inv, 'items') else []
+            all_exempt = all(item.gst_rate == 0 for item in items) if items else False
+
+            if all_exempt:
+                # Goes to 3.1(c) - Exempt/Nil rated
+                exempt_nil['taxable_value'] += inv.subtotal or 0
+            elif inv.igst_total and inv.igst_total > 0 and inv.cgst_total == 0:
+                # Inter-state supply - could be export (zero rated) or regular
+                # For simplicity, treat inter-state as regular taxable
+                taxable_outward['taxable_value'] += inv.subtotal or 0
+                taxable_outward['igst'] += inv.igst_total or 0
+            else:
+                # Regular intra-state taxable supply - 3.1(a)
+                taxable_outward['taxable_value'] += inv.subtotal or 0
+                taxable_outward['cgst'] += inv.cgst_total or 0
+                taxable_outward['sgst'] += inv.sgst_total or 0
+
+    # Deduct credit notes from outward supplies
+    cn_total = sum(cn.grand_total or 0 for cn in credit_notes)
+    cn_cgst = sum(cn.cgst_total or 0 for cn in credit_notes)
+    cn_sgst = sum(cn.sgst_total or 0 for cn in credit_notes)
+    cn_igst = sum(cn.igst_total or 0 for cn in credit_notes)
+
+    # 3.2 Inter-state supplies made to
+    # (a) Unregistered persons (B2C)
+    # (b) Composition taxable persons
+    # (c) UIN holders
+    b2c_interstate = {'taxable_value': 0}
+    for inv in invoices:
+        supply_type = getattr(inv, 'supply_type', 'B2C')
+        if supply_type == 'B2C' and inv.igst_total and inv.igst_total > 0:
+            b2c_interstate['taxable_value'] += inv.subtotal or 0
+
+    # Calculate totals
+    total_liability = {
+        'igst': taxable_outward['igst'] + reverse_charge['igst'] - cn_igst,
+        'cgst': taxable_outward['cgst'] + reverse_charge['cgst'] - cn_cgst,
+        'sgst': taxable_outward['sgst'] + reverse_charge['sgst'] - cn_sgst,
+        'cess': 0
+    }
+
+    return render_template(
+        'reports/gstr3b.html',
+        month=month,
+        year=year,
+        start_date=start_date,
+        end_date=end_date,
+        taxable_outward=taxable_outward,
+        zero_rated=zero_rated,
+        exempt_nil=exempt_nil,
+        reverse_charge=reverse_charge,
+        b2c_interstate=b2c_interstate,
+        cn_total=cn_total,
+        cn_cgst=cn_cgst,
+        cn_sgst=cn_sgst,
+        cn_igst=cn_igst,
+        total_liability=total_liability,
+        invoice_count=len(invoices),
+        cn_count=len(credit_notes)
+    )
+
+
+@reports_bp.route('/gstr3b/export')
+@login_required
+def export_gstr3b():
+    """Export GSTR-3B to Excel"""
+    month = request.args.get('month', date.today().month, type=int)
+    year = request.args.get('year', date.today().year, type=int)
+
+    # Calculate date range
+    start_date = date(year, month, 1)
+    if month == 12:
+        end_date = date(year + 1, 1, 1) - timedelta(days=1)
+    else:
+        end_date = date(year, month + 1, 1) - timedelta(days=1)
+
+    # Get invoices and credit notes
+    invoices = Invoice.query.filter(
+        Invoice.invoice_date.between(start_date, end_date),
+        Invoice.is_cancelled == False
+    ).all()
+
+    credit_notes = CreditNote.query.filter(
+        CreditNote.credit_note_date.between(start_date, end_date),
+        CreditNote.status != 'CANCELLED'
+    ).all()
+
+    # Calculate GSTR-3B data (same logic as above)
+    taxable_outward = {'taxable_value': 0, 'igst': 0, 'cgst': 0, 'sgst': 0, 'cess': 0}
+    exempt_nil = {'taxable_value': 0}
+    reverse_charge = {'taxable_value': 0, 'igst': 0, 'cgst': 0, 'sgst': 0, 'cess': 0}
+
+    for inv in invoices:
+        is_rcm = getattr(inv, 'is_reverse_charge', False)
+        if is_rcm:
+            reverse_charge['taxable_value'] += inv.subtotal or 0
+            reverse_charge['igst'] += inv.igst_total or 0
+            reverse_charge['cgst'] += inv.cgst_total or 0
+            reverse_charge['sgst'] += inv.sgst_total or 0
+        else:
+            items = list(inv.items) if hasattr(inv, 'items') else []
+            all_exempt = all(item.gst_rate == 0 for item in items) if items else False
+            if all_exempt:
+                exempt_nil['taxable_value'] += inv.subtotal or 0
+            else:
+                taxable_outward['taxable_value'] += inv.subtotal or 0
+                taxable_outward['igst'] += inv.igst_total or 0
+                taxable_outward['cgst'] += inv.cgst_total or 0
+                taxable_outward['sgst'] += inv.sgst_total or 0
+
+    cn_total = sum(cn.grand_total or 0 for cn in credit_notes)
+    cn_cgst = sum(cn.cgst_total or 0 for cn in credit_notes)
+    cn_sgst = sum(cn.sgst_total or 0 for cn in credit_notes)
+    cn_igst = sum(cn.igst_total or 0 for cn in credit_notes)
+
+    # Create Excel workbook
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "GSTR-3B Summary"
+
+    header_font = Font(bold=True, color="FFFFFF")
+    header_fill = PatternFill(start_color="1a5276", end_color="1a5276", fill_type="solid")
+
+    # Title
+    ws.append([f"GSTR-3B Summary - {start_date.strftime('%B %Y')}"])
+    ws.merge_cells('A1:F1')
+    ws['A1'].font = Font(bold=True, size=14)
+    ws.append([])
+
+    # 3.1 Outward Supplies
+    ws.append(['3.1 Details of Outward Supplies and Inward Supplies liable to reverse charge'])
+    ws['A3'].font = Font(bold=True)
+    ws.append([])
+
+    headers = ['Nature of Supplies', 'Taxable Value', 'IGST', 'CGST', 'SGST/UTGST', 'Cess']
+    ws.append(headers)
+    for col, cell in enumerate(ws[5], 1):
+        cell.font = header_font
+        cell.fill = header_fill
+
+    ws.append(['(a) Outward taxable supplies', taxable_outward['taxable_value'],
+               taxable_outward['igst'], taxable_outward['cgst'], taxable_outward['sgst'], 0])
+    ws.append(['(b) Outward taxable supplies (zero rated)', 0, 0, 0, 0, 0])
+    ws.append(['(c) Other outward supplies (exempt, nil rated)', exempt_nil['taxable_value'], 0, 0, 0, 0])
+    ws.append(['(d) Inward supplies (reverse charge)', reverse_charge['taxable_value'],
+               reverse_charge['igst'], reverse_charge['cgst'], reverse_charge['sgst'], 0])
+    ws.append([])
+
+    # Credit Notes
+    ws.append(['Credit Notes Issued'])
+    ws['A11'].font = Font(bold=True)
+    ws.append(['Total Credit Notes', cn_total, cn_igst, cn_cgst, cn_sgst, 0])
+    ws.append([])
+
+    # Net Liability
+    ws.append(['Net Tax Liability'])
+    ws['A14'].font = Font(bold=True)
+    net_igst = taxable_outward['igst'] + reverse_charge['igst'] - cn_igst
+    net_cgst = taxable_outward['cgst'] + reverse_charge['cgst'] - cn_cgst
+    net_sgst = taxable_outward['sgst'] + reverse_charge['sgst'] - cn_sgst
+    ws.append(['Total Liability', '', net_igst, net_cgst, net_sgst, 0])
+
+    # Format columns
+    for col in ['B', 'C', 'D', 'E', 'F']:
+        ws.column_dimensions[col].width = 15
+    ws.column_dimensions['A'].width = 45
+
+    output = BytesIO()
+    wb.save(output)
+    output.seek(0)
+
+    month_name = start_date.strftime('%B')
+    filename = f"GSTR3B_{month_name}_{year}.xlsx"
+
+    return send_file(
+        output,
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        as_attachment=True,
+        download_name=filename
+    )
+
+
 @reports_bp.route('/sales/export')
 @login_required
 def export_sales():

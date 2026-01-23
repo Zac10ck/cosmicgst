@@ -253,40 +253,139 @@ class PDFGenerator:
 
         elements = []
 
-        # 1. Header Section (Company + Invoice Info)
-        elements.extend(self._build_professional_header(company, 'TAX INVOICE', invoice))
+        # Determine invoice type (TAX INVOICE or BILL OF SUPPLY)
+        invoice_type = getattr(invoice, 'invoice_type', 'TAX_INVOICE')
+        doc_title = 'BILL OF SUPPLY' if invoice_type == 'BILL_OF_SUPPLY' else 'TAX INVOICE'
 
-        # 2. Bill From / Bill To Section
+        # 1. Header Section (Company + Invoice Info)
+        elements.extend(self._build_professional_header(company, doc_title, invoice))
+
+        # 2. GST Compliance Info Section
+        elements.extend(self._build_gst_compliance_info(invoice, company))
+
+        # 3. Bill From / Bill To Section
         elements.extend(self._build_billing_parties(company, invoice.customer_name, invoice.customer))
 
-        # 3. Items Table
+        # 4. Items Table
         elements.extend(self._build_professional_items_table(items))
 
-        # 4. HSN Summary (GST Compliance)
+        # 5. HSN Summary (GST Compliance)
         hsn_summary = self._calculate_hsn_summary(items)
         if hsn_summary:
             elements.extend(self._build_hsn_summary_table(hsn_summary))
 
-        # 5. Totals Section
+        # 6. Totals Section
         elements.extend(self._build_professional_totals(invoice))
 
-        # 6. Amount in Words
+        # 7. Amount in Words
         elements.append(Spacer(1, 2*mm))
         elements.append(Paragraph(
             f"<b>Amount in Words:</b> {number_to_words_indian(invoice.grand_total)}",
             self.styles['AmountWords']
         ))
 
-        # 7. Bank Details (if available)
+        # 8. E-Way Bill Info (if generated)
+        eway_number = getattr(invoice, 'eway_bill_number', '')
+        if eway_number:
+            elements.extend(self._build_eway_bill_info(invoice))
+
+        # 9. Bank Details (if available)
         if company and (company.bank_name or company.bank_account):
             elements.extend(self._build_bank_details(company))
 
-        # 8. Footer Section
+        # 10. Footer Section
         elements.extend(self._build_professional_footer(company))
 
         doc.build(elements)
         buffer.seek(0)
         return buffer.getvalue()
+
+    def _build_gst_compliance_info(self, invoice, company):
+        """Build GST compliance information section"""
+        elements = []
+
+        # Get values with defaults
+        supply_type = getattr(invoice, 'supply_type', 'B2C')
+        is_rcm = getattr(invoice, 'is_reverse_charge', False)
+        buyer_state_code = getattr(invoice, 'buyer_state_code', '')
+        seller_state_code = company.state_code if company else '32'
+
+        # Determine Place of Supply
+        pos_code = buyer_state_code or seller_state_code
+        pos_name = get_state_name(pos_code)
+
+        # Build info items
+        info_items = [
+            f"<b>Supply Type:</b> {supply_type}",
+            f"<b>Place of Supply:</b> {pos_name} ({pos_code})",
+            f"<b>Reverse Charge:</b> {'Yes' if is_rcm else 'No'}",
+        ]
+
+        # Customer GSTIN if B2B
+        customer_gstin = getattr(invoice, 'customer_gstin', '')
+        if customer_gstin:
+            info_items.append(f"<b>Customer GSTIN:</b> {customer_gstin}")
+
+        # Create a compact info bar
+        info_text = " | ".join(info_items)
+        info_para = Paragraph(info_text, self.styles['CompanyDetails'])
+
+        info_table = Table([[info_para]], colWidths=[self.content_width])
+        info_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, -1), COLORS['lighter_bg']),
+            ('BOX', (0, 0), (-1, -1), 0.5, COLORS['border']),
+            ('TOPPADDING', (0, 0), (-1, -1), 2*mm),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 2*mm),
+            ('LEFTPADDING', (0, 0), (-1, -1), 3*mm),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 3*mm),
+        ]))
+
+        elements.append(info_table)
+        elements.append(Spacer(1, 2*mm))
+
+        return elements
+
+    def _build_eway_bill_info(self, invoice):
+        """Build e-Way bill information section"""
+        elements = []
+
+        eway_number = getattr(invoice, 'eway_bill_number', '')
+        vehicle_number = getattr(invoice, 'vehicle_number', '')
+        transport_mode = getattr(invoice, 'transport_mode', 'Road')
+        transport_distance = getattr(invoice, 'transport_distance', 0)
+
+        elements.append(Spacer(1, 2*mm))
+
+        # E-Way Bill header
+        eway_header = Paragraph("<b>E-Way Bill Details</b>", self.styles['SectionHeader'])
+
+        # E-Way Bill details
+        eway_items = [f"<b>E-Way Bill No:</b> {eway_number}"]
+        if vehicle_number:
+            eway_items.append(f"<b>Vehicle:</b> {vehicle_number}")
+        if transport_mode:
+            eway_items.append(f"<b>Mode:</b> {transport_mode}")
+        if transport_distance:
+            eway_items.append(f"<b>Distance:</b> {transport_distance} km")
+
+        eway_text = " | ".join(eway_items)
+        eway_para = Paragraph(eway_text, self.styles['CompanyDetails'])
+
+        eway_table = Table([[eway_header], [eway_para]], colWidths=[self.content_width])
+        eway_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), COLORS['primary']),
+            ('TEXTCOLOR', (0, 0), (-1, 0), COLORS['white']),
+            ('BACKGROUND', (0, 1), (-1, -1), COLORS['light_bg']),
+            ('BOX', (0, 0), (-1, -1), 0.5, COLORS['border']),
+            ('TOPPADDING', (0, 0), (-1, -1), 2*mm),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 2*mm),
+            ('LEFTPADDING', (0, 0), (-1, -1), 3*mm),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 3*mm),
+        ]))
+
+        elements.append(eway_table)
+
+        return elements
 
     def generate_quotation_pdf(self, quotation, company, items):
         """Generate professional quotation PDF"""

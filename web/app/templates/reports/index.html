@@ -146,5 +146,21 @@
             </div>
         </div>
     </div>
+
+    <!-- GSTR-3B Report -->
+    <div class="col-md-6 col-lg-4">
+        <div class="card h-100">
+            <div class="card-body text-center">
+                <div class="mb-3">
+                    <i class="bi bi-file-earmark-text display-4" style="color: #198754;"></i>
+                </div>
+                <h5 class="card-title">GSTR-3B Summary</h5>
+                <p class="card-text text-muted">Monthly return summary with tax liability calculations.</p>
+                <a href="{{ url_for('reports.gstr3b_report') }}" class="btn btn-success">
+                    <i class="bi bi-arrow-right me-1"></i>View Report
+                </a>
+            </div>
+        </div>
+    </div>
 </div>
 {% endblock %}

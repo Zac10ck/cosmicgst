@@ -463,6 +463,9 @@ class BillingCart {
 
         const paymentMode = document.getElementById('payment-mode').value;
 
+        // Get GST options
+        const isReverseCharge = document.getElementById('reverse-charge')?.checked || false;
+
         // Get e-Way bill transport details
         const transportMode = document.getElementById('transport-mode')?.value || 'Road';
         const vehicleNumber = document.getElementById('vehicle-number')?.value || '';
@@ -490,6 +493,8 @@ class BillingCart {
                     buyer_state_code: this.customer?.state_code || null,
                     discount: this.discount,
                     payment_mode: paymentMode,
+                    // GST options
+                    is_reverse_charge: isReverseCharge,
                     // E-Way bill transport details
                     transport_mode: transportMode,
                     vehicle_number: vehicleNumber,

@@ -43,6 +43,16 @@ class Invoice(db.Model):
     supply_type = db.Column(db.String(10), default='B2C')  # B2B or B2C
     customer_gstin = db.Column(db.String(15), default='')  # Customer GSTIN at invoice time
 
+    # GST Compliance fields
+    invoice_type = db.Column(db.String(20), default='TAX_INVOICE')  # TAX_INVOICE, BILL_OF_SUPPLY
+    is_reverse_charge = db.Column(db.Boolean, default=False)  # Reverse Charge Mechanism
+    buyer_state_code = db.Column(db.String(2), default='')  # Place of Supply
+
+    # E-Way Bill status tracking
+    eway_bill_status = db.Column(db.String(20), default='')  # pending, generated, expired
+    eway_bill_generated_at = db.Column(db.DateTime, nullable=True)
+    eway_bill_valid_until = db.Column(db.DateTime, nullable=True)
+
     # Relationships
     items = db.relationship('InvoiceItem', backref='invoice', lazy='dynamic',
                            cascade='all, delete-orphan')
@@ -131,11 +141,15 @@ class Invoice(db.Model):
             'is_cancelled': self.is_cancelled,
             'supply_type': getattr(self, 'supply_type', 'B2C'),
             'customer_gstin': getattr(self, 'customer_gstin', ''),
+            'invoice_type': getattr(self, 'invoice_type', 'TAX_INVOICE'),
+            'is_reverse_charge': getattr(self, 'is_reverse_charge', False),
+            'buyer_state_code': getattr(self, 'buyer_state_code', ''),
             'vehicle_number': getattr(self, 'vehicle_number', ''),
             'transport_mode': getattr(self, 'transport_mode', 'Road'),
             'transport_distance': getattr(self, 'transport_distance', 0),
             'transporter_id': getattr(self, 'transporter_id', ''),
             'eway_bill_number': getattr(self, 'eway_bill_number', ''),
+            'eway_bill_status': getattr(self, 'eway_bill_status', ''),
             'items': [item.to_dict() for item in self.items]
         }
 

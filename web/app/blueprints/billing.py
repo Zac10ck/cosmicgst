@@ -648,7 +648,6 @@ def check_eway_bill_required(id):
 def eway_bill_dashboard():
     """E-Way Bill dashboard showing all e-Way bills with expiry status"""
     from datetime import datetime, timedelta
-    from app.services.eway_bill_service import STATE_CODES
 
     now = datetime.utcnow()
     today = now.date()
@@ -658,8 +657,11 @@ def eway_bill_dashboard():
     expiring_soon = []  # Within 24 hours
     valid = []
     pending = []  # Required but not generated
+    state_codes = {}
 
     try:
+        from app.services.eway_bill_service import STATE_CODES
+        state_codes = STATE_CODES
         # Get all invoices with e-Way bill numbers
         eway_invoices = Invoice.query.filter(
             Invoice.eway_bill_number != '',
@@ -726,7 +728,7 @@ def eway_bill_dashboard():
         total_expiring=len(expiring_soon),
         total_valid=len(valid),
         total_pending=len(pending),
-        state_codes=STATE_CODES,
+        state_codes=state_codes,
         now=now
     )
 

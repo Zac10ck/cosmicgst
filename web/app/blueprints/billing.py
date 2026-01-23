@@ -653,60 +653,68 @@ def eway_bill_dashboard():
     now = datetime.utcnow()
     today = now.date()
 
-    # Get all invoices with e-Way bill numbers
-    eway_invoices = Invoice.query.filter(
-        Invoice.eway_bill_number != '',
-        Invoice.eway_bill_number.isnot(None),
-        Invoice.is_cancelled == False
-    ).order_by(Invoice.invoice_date.desc()).all()
-
     # Categorize by status
     expired = []
     expiring_soon = []  # Within 24 hours
     valid = []
     pending = []  # Required but not generated
 
-    for inv in eway_invoices:
-        inv_data = {
-            'invoice': inv,
-            'status': 'unknown',
-            'days_remaining': None,
-            'hours_remaining': None
-        }
+    try:
+        # Get all invoices with e-Way bill numbers
+        eway_invoices = Invoice.query.filter(
+            Invoice.eway_bill_number != '',
+            Invoice.eway_bill_number.isnot(None),
+            Invoice.is_cancelled == False
+        ).order_by(Invoice.invoice_date.desc()).all()
 
-        if inv.eway_bill_valid_until:
-            if inv.eway_bill_valid_until < now:
-                inv_data['status'] = 'expired'
-                inv_data['days_expired'] = (now - inv.eway_bill_valid_until).days
-                expired.append(inv_data)
-            elif inv.eway_bill_valid_until < now + timedelta(hours=24):
-                inv_data['status'] = 'expiring_soon'
-                delta = inv.eway_bill_valid_until - now
-                inv_data['hours_remaining'] = int(delta.total_seconds() / 3600)
-                expiring_soon.append(inv_data)
+        for inv in eway_invoices:
+            inv_data = {
+                'invoice': inv,
+                'status': 'unknown',
+                'days_remaining': None,
+                'hours_remaining': None
+            }
+
+            # Use getattr to handle case where column might not exist yet
+            valid_until = getattr(inv, 'eway_bill_valid_until', None)
+            if valid_until:
+                if valid_until < now:
+                    inv_data['status'] = 'expired'
+                    inv_data['days_expired'] = (now - valid_until).days
+                    expired.append(inv_data)
+                elif valid_until < now + timedelta(hours=24):
+                    inv_data['status'] = 'expiring_soon'
+                    delta = valid_until - now
+                    inv_data['hours_remaining'] = int(delta.total_seconds() / 3600)
+                    expiring_soon.append(inv_data)
+                else:
+                    inv_data['status'] = 'valid'
+                    inv_data['days_remaining'] = (valid_until - now).days
+                    valid.append(inv_data)
             else:
+                # Has e-Way bill number but no validity set (legacy data)
                 inv_data['status'] = 'valid'
-                inv_data['days_remaining'] = (inv.eway_bill_valid_until - now).days
                 valid.append(inv_data)
-        else:
-            # Has e-Way bill number but no validity set (legacy data)
-            inv_data['status'] = 'valid'
-            valid.append(inv_data)
 
-    # Get invoices that require e-Way bill but don't have one
-    pending_invoices = Invoice.query.filter(
-        Invoice.grand_total >= EWAY_BILL_THRESHOLD,
-        (Invoice.eway_bill_number == '') | (Invoice.eway_bill_number.is_(None)),
-        Invoice.is_cancelled == False,
-        Invoice.invoice_date >= today - timedelta(days=30)  # Last 30 days
-    ).order_by(Invoice.invoice_date.desc()).all()
+        # Get invoices that require e-Way bill but don't have one
+        pending_invoices = Invoice.query.filter(
+            Invoice.grand_total >= EWAY_BILL_THRESHOLD,
+            (Invoice.eway_bill_number == '') | (Invoice.eway_bill_number.is_(None)),
+            Invoice.is_cancelled == False,
+            Invoice.invoice_date >= today - timedelta(days=30)  # Last 30 days
+        ).order_by(Invoice.invoice_date.desc()).all()
 
-    for inv in pending_invoices:
-        pending.append({
-            'invoice': inv,
-            'status': 'pending',
-            'days_old': (today - inv.invoice_date).days
-        })
+        for inv in pending_invoices:
+            pending.append({
+                'invoice': inv,
+                'status': 'pending',
+                'days_old': (today - inv.invoice_date).days
+            })
+
+    except Exception as e:
+        # Database column might not exist yet - log error and continue with empty lists
+        print(f"E-Way dashboard error (likely missing columns): {e}")
+        flash('E-Way bill tracking features require a database update. Please redeploy the application.', 'warning')
 
     return render_template(
         'billing/eway_dashboard.html',

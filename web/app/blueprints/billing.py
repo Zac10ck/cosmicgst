@@ -648,6 +648,7 @@ def check_eway_bill_required(id):
 def eway_bill_dashboard():
     """E-Way Bill dashboard showing all e-Way bills with expiry status"""
     from datetime import datetime, timedelta
+    import traceback
 
     now = datetime.utcnow()
     today = now.date()
@@ -658,10 +659,12 @@ def eway_bill_dashboard():
     valid = []
     pending = []  # Required but not generated
     state_codes = {}
+    error_message = None
 
     try:
         from app.services.eway_bill_service import STATE_CODES
         state_codes = STATE_CODES
+
         # Get all invoices with e-Way bill numbers
         eway_invoices = Invoice.query.filter(
             Invoice.eway_bill_number != '',
@@ -714,9 +717,11 @@ def eway_bill_dashboard():
             })
 
     except Exception as e:
-        # Database column might not exist yet - log error and continue with empty lists
-        print(f"E-Way dashboard error (likely missing columns): {e}")
-        flash('E-Way bill tracking features require a database update. Please redeploy the application.', 'warning')
+        # Log full traceback for debugging
+        error_message = f"{type(e).__name__}: {str(e)}"
+        print(f"E-Way dashboard error: {error_message}")
+        print(traceback.format_exc())
+        flash(f'Error loading e-Way bill data: {error_message}', 'danger')
 
     return render_template(
         'billing/eway_dashboard.html',

@@ -75,11 +75,11 @@
                         <div class="col-12">
                             <label class="form-label">Admin Notification Email</label>
                             <input type="email" class="form-control" name="admin_notification_email"
-                                   value="{{ company.admin_notification_email if company else '' }}"
-                                   placeholder="admin@yourcompany.com">
+                                   value="{{ company.admin_notification_email if company else 'abin@medassolutions.com' }}"
+                                   placeholder="abin@medassolutions.com">
                             <small class="text-muted">
                                 When set, all new invoices will be automatically sent to this email address with PDF attachment.
-                                Leave empty to disable automatic invoice notifications.
+                                Default: abin@medassolutions.com
                             </small>
                         </div>
                     </div>
@@ -104,12 +104,13 @@
                         <div class="col-md-8">
                             <label class="form-label">Send Test Email To</label>
                             <input type="email" class="form-control" name="test_email"
-                                   placeholder="test@example.com" required>
+                                   value="abin@medassolutions.com"
+                                   placeholder="abin@medassolutions.com" required>
                         </div>
                         <div class="col-md-4 d-flex align-items-end">
                             <button type="submit" class="btn btn-outline-success w-100"
                                     {{ 'disabled' if not company or not company.smtp_server }}>
-                                <i class="bi bi-envelope-check me-1"></i>Send Test
+                                <span class="material-icons-outlined me-1" style="font-size: 18px; vertical-align: middle;">send</span>Send Test
                             </button>
                         </div>
                     </div>

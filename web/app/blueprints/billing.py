@@ -237,13 +237,20 @@ def create_invoice():
 
 
 def _queue_invoice_email(invoice, company):
-    """Queue email notification for invoice (non-blocking)"""
+    """Queue email notification for invoice to admin (non-blocking)"""
     try:
-        if not company or not getattr(company, 'admin_notification_email', None):
-            return  # Email not configured
+        # Default admin email if not configured
+        DEFAULT_ADMIN_EMAIL = 'abin@medassolutions.com'
 
-        if not company.smtp_server:
-            return  # SMTP not configured
+        # Get admin email - use default if not configured
+        admin_email = getattr(company, 'admin_notification_email', None) if company else None
+        if not admin_email:
+            admin_email = DEFAULT_ADMIN_EMAIL
+
+        # Check SMTP configuration
+        if not company or not company.smtp_server:
+            print(f"Email skipped for invoice {invoice.invoice_number}: SMTP not configured")
+            return
 
         from app.models.email_queue import EmailQueue
         from app.services.email_service import EmailService
@@ -251,14 +258,18 @@ def _queue_invoice_email(invoice, company):
         email_service = EmailService(company)
         email_content = email_service.generate_invoice_email_content(invoice, company)
 
-        # Queue the email
+        # Queue the email with admin notification subject
+        subject = f"[New Invoice] {invoice.invoice_number} - Rs. {invoice.grand_total:,.2f}"
+
         EmailQueue.queue_invoice_email(
             invoice_id=invoice.id,
-            recipient=company.admin_notification_email,
-            subject=email_content['subject'],
+            recipient=admin_email,
+            subject=subject,
             body_html=email_content['body_html'],
             body_text=email_content['body_text']
         )
+
+        print(f"Email queued for invoice {invoice.invoice_number} to {admin_email}")
 
         # Try to send immediately (non-blocking)
         _process_email_queue()

@@ -53,6 +53,69 @@
     <strong>Period:</strong> {{ start_date.strftime('%d %B %Y') }} to {{ end_date.strftime('%d %B %Y') }}
 </div>
 
+<!-- GST Submission Instructions -->
+<div class="card mb-4 border-primary">
+    <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center"
+         data-bs-toggle="collapse" data-bs-target="#gstInstructions"
+         style="cursor: pointer;">
+        <span><i class="bi bi-info-circle me-2"></i>GST Portal Submission Instructions</span>
+        <i class="bi bi-chevron-down"></i>
+    </div>
+    <div class="collapse" id="gstInstructions">
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6">
+                    <h6 class="fw-bold text-primary"><i class="bi bi-1-circle me-2"></i>Export Data</h6>
+                    <p class="mb-3">Click the <strong>"Export Excel"</strong> button above to download the GSTR-1 Excel file with all invoice data.</p>
+
+                    <h6 class="fw-bold text-primary"><i class="bi bi-2-circle me-2"></i>Login to GST Portal</h6>
+                    <p class="mb-3">Go to <a href="https://www.gst.gov.in" target="_blank" class="text-decoration-none">www.gst.gov.in</a> and login with your GSTIN credentials.</p>
+
+                    <h6 class="fw-bold text-primary"><i class="bi bi-3-circle me-2"></i>Navigate to Returns</h6>
+                    <p class="mb-0"><code>Services &rarr; Returns &rarr; Returns Dashboard &rarr; Select Period &rarr; GSTR-1 &rarr; Prepare Online/Offline</code></p>
+                </div>
+                <div class="col-md-6">
+                    <h6 class="fw-bold text-primary"><i class="bi bi-4-circle me-2"></i>Upload Data by Section</h6>
+                    <ul class="mb-3">
+                        <li><strong>B2B Invoices:</strong> Go to <em>"4A - B2B Invoices"</em> - Upload invoices to registered dealers (with GSTIN)</li>
+                        <li><strong>B2C Invoices:</strong> Go to <em>"7 - B2C (Others)"</em> for intra-state sales, or <em>"5 - B2CL"</em> for inter-state sales above Rs. 2.5 Lakh</li>
+                        <li><strong>Credit Notes:</strong> Go to <em>"9B - Credit/Debit Notes (Unregistered)"</em></li>
+                        <li><strong>HSN Summary:</strong> Go to <em>"12 - HSN-wise Summary"</em></li>
+                    </ul>
+
+                    <h6 class="fw-bold text-primary"><i class="bi bi-5-circle me-2"></i>Submit Return</h6>
+                    <p class="mb-0">Review all sections &rarr; Preview &rarr; File GSTR-1 with DSC/EVC</p>
+                </div>
+            </div>
+
+            <hr class="my-3">
+
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="alert alert-warning mb-0">
+                        <i class="bi bi-exclamation-triangle me-2"></i>
+                        <strong>Filing Due Date:</strong><br>
+                        <small>
+                            <strong>Monthly Filers:</strong> 11th of the following month<br>
+                            <strong>Quarterly (QRMP):</strong> 13th of the month following the quarter
+                        </small>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="alert alert-success mb-0">
+                        <i class="bi bi-lightbulb me-2"></i>
+                        <strong>B2B vs B2C Classification:</strong><br>
+                        <small>
+                            <strong>B2B:</strong> Sales to registered dealers (customer has GSTIN)<br>
+                            <strong>B2C:</strong> Sales to consumers/unregistered dealers (no GSTIN)
+                        </small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Summary Cards -->
 <div class="row mb-4">
     <div class="col-md-3">

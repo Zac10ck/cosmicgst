@@ -1,84 +1,88 @@
-<!-- Sidebar Navigation -->
-<nav id="sidebar" class="d-none d-md-block bg-light sidebar">
-    <div class="position-sticky pt-3">
+<!-- Sidebar Navigation - Material Design Navigation Drawer -->
+<nav id="sidebar" class="d-none d-md-block sidebar">
+    <div class="position-sticky pt-2">
         <ul class="nav flex-column">
+            <!-- Operations Section -->
             <li class="nav-item">
                 <a class="nav-link {{ 'active' if request.endpoint and request.endpoint.startswith('dashboard') }}"
                    href="{{ url_for('dashboard.index') }}">
-                    <i class="bi bi-speedometer2 me-2"></i>Dashboard
+                    <span class="material-icons-outlined">dashboard</span>Dashboard
                 </a>
             </li>
             <li class="nav-item">
                 <a class="nav-link {{ 'active' if request.endpoint == 'billing.new_bill' }}"
                    href="{{ url_for('billing.new_bill') }}">
-                    <i class="bi bi-cart-plus me-2"></i>New Bill
+                    <span class="material-icons-outlined">add_shopping_cart</span>New Bill
                 </a>
             </li>
             <li class="nav-item">
                 <a class="nav-link {{ 'active' if request.endpoint and 'quotation' in request.endpoint }}"
                    href="{{ url_for('quotations.index') }}">
-                    <i class="bi bi-file-text me-2"></i>Quotations
+                    <span class="material-icons-outlined">request_quote</span>Quotations
                 </a>
             </li>
             <li class="nav-item">
                 <a class="nav-link {{ 'active' if request.endpoint and request.endpoint.startswith('billing.') and request.endpoint != 'billing.new_bill' and request.endpoint != 'billing.eway_bill_dashboard' }}"
                    href="{{ url_for('billing.invoice_list') }}">
-                    <i class="bi bi-receipt me-2"></i>Invoices
+                    <span class="material-icons-outlined">receipt_long</span>Invoices
                 </a>
             </li>
             <li class="nav-item">
                 <a class="nav-link {{ 'active' if request.endpoint == 'billing.eway_bill_dashboard' }}"
                    href="{{ url_for('billing.eway_bill_dashboard') }}">
-                    <i class="bi bi-truck me-2"></i>E-Way Bills
+                    <span class="material-icons-outlined">local_shipping</span>E-Way Bills
                 </a>
             </li>
             <li class="nav-item">
                 <a class="nav-link {{ 'active' if request.endpoint and 'credit_note' in request.endpoint }}"
                    href="{{ url_for('credit_notes.index') }}">
-                    <i class="bi bi-file-earmark-minus me-2"></i>Credit Notes
+                    <span class="material-icons-outlined">assignment_return</span>Credit Notes
                 </a>
             </li>
 
-            <li class="nav-item mt-3">
-                <small class="nav-link text-muted text-uppercase">Management</small>
+            <!-- Management Section -->
+            <li class="nav-item">
+                <small class="nav-link text-muted">Management</small>
             </li>
             <li class="nav-item">
                 <a class="nav-link {{ 'active' if request.endpoint and request.endpoint.startswith('products') }}"
                    href="{{ url_for('products.index') }}">
-                    <i class="bi bi-box-seam me-2"></i>Products
+                    <span class="material-icons-outlined">inventory_2</span>Products
                 </a>
             </li>
             <li class="nav-item">
                 <a class="nav-link {{ 'active' if request.endpoint and request.endpoint.startswith('customers') }}"
                    href="{{ url_for('customers.index') }}">
-                    <i class="bi bi-people me-2"></i>Customers
+                    <span class="material-icons-outlined">groups</span>Customers
                 </a>
             </li>
 
-            <li class="nav-item mt-3">
-                <small class="nav-link text-muted text-uppercase">Reports</small>
+            <!-- Reports Section -->
+            <li class="nav-item">
+                <small class="nav-link text-muted">Reports</small>
             </li>
             <li class="nav-item">
                 <a class="nav-link {{ 'active' if request.endpoint and request.endpoint.startswith('reports') }}"
                    href="{{ url_for('reports.index') }}">
-                    <i class="bi bi-bar-chart me-2"></i>Reports
+                    <span class="material-icons-outlined">analytics</span>Reports
                 </a>
             </li>
 
+            <!-- Admin Section -->
             {% if current_user.is_admin() %}
-            <li class="nav-item mt-3">
-                <small class="nav-link text-muted text-uppercase">Admin</small>
+            <li class="nav-item">
+                <small class="nav-link text-muted">Admin</small>
             </li>
             <li class="nav-item">
                 <a class="nav-link {{ 'active' if request.endpoint and request.endpoint.startswith('auth.manage') }}"
                    href="{{ url_for('auth.manage_users') }}">
-                    <i class="bi bi-people-fill me-2"></i>Users
+                    <span class="material-icons-outlined">manage_accounts</span>Users
                 </a>
             </li>
             <li class="nav-item">
                 <a class="nav-link {{ 'active' if request.endpoint and request.endpoint.startswith('settings') }}"
                    href="{{ url_for('settings.index') }}">
-                    <i class="bi bi-gear me-2"></i>Settings
+                    <span class="material-icons-outlined">settings</span>Settings
                 </a>
             </li>
             {% endif %}

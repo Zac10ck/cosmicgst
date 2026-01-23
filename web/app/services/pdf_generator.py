@@ -29,21 +29,23 @@ STATE_CODES = {
     "38": "Ladakh"
 }
 
-# Professional Color Scheme
+# Medical/Healthcare Professional Color Scheme
 COLORS = {
-    'primary': colors.HexColor('#1a5276'),        # Dark blue - headers
-    'primary_light': colors.HexColor('#2980b9'),  # Medium blue - accents
-    'success': colors.HexColor('#27ae60'),        # Green
-    'warning': colors.HexColor('#e67e22'),        # Orange
-    'danger': colors.HexColor('#c0392b'),         # Red
-    'light_bg': colors.HexColor('#f8f9fa'),       # Light gray background
-    'lighter_bg': colors.HexColor('#f1f4f8'),     # Alternating rows
-    'border': colors.HexColor('#dee2e6'),         # Borders
-    'border_dark': colors.HexColor('#adb5bd'),    # Darker borders
-    'text_dark': colors.HexColor('#2c3e50'),      # Primary text
-    'text_muted': colors.HexColor('#6c757d'),     # Secondary text
+    'primary': colors.HexColor('#008B8B'),        # Dark Cyan/Teal - main headers
+    'primary_dark': colors.HexColor('#006666'),   # Darker Teal - accent
+    'primary_light': colors.HexColor('#20B2AA'),  # Light Sea Green
+    'header_bg': colors.HexColor('#008080'),      # Teal - table headers
+    'success': colors.HexColor('#2E8B57'),        # Sea Green - success
+    'warning': colors.HexColor('#FF9800'),        # Orange - quotations
+    'danger': colors.HexColor('#c0392b'),         # Red - credit notes
+    'light_bg': colors.HexColor('#E0F7FA'),       # Very Light Cyan background
+    'lighter_bg': colors.HexColor('#F0FFFF'),     # Azure - alternating rows
+    'border': colors.HexColor('#B2DFDB'),         # Light Teal Border
+    'border_dark': colors.HexColor('#80CBC4'),    # Medium Teal Border
+    'text_dark': colors.HexColor('#004D40'),      # Dark Teal Text
+    'text_muted': colors.HexColor('#607D8B'),     # Blue Grey - secondary text
     'white': colors.white,
-    'total_bg': colors.HexColor('#e8f4f8'),       # Total row background
+    'total_bg': colors.HexColor('#E0F2F1'),       # Teal Light Background for totals
 }
 
 
@@ -1030,7 +1032,7 @@ class PDFGenerator:
         elements.append(Spacer(1, 5*mm))
         elements.append(HRFlowable(width="100%", thickness=0.5, color=COLORS['border']))
         elements.append(Spacer(1, 2*mm))
-        elements.append(Paragraph("Thank you for your business!", self.styles['FooterCenter']))
+        elements.append(Paragraph("Thank you for choosing us for your healthcare needs!", self.styles['FooterCenter']))
 
         return elements
 

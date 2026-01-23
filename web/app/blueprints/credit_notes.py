@@ -15,6 +15,51 @@ from app.services.pdf_generator import pdf_generator
 credit_notes_bp = Blueprint('credit_notes', __name__, url_prefix='/credit-notes')
 
 
+def _perform_cancellation(credit_note):
+    """
+    Perform cancellation logic for a credit note.
+    Returns (success, error_message) tuple.
+    """
+    # Validate stock before cancellation for returns
+    if credit_note.reason == 'RETURN':
+        for item in credit_note.items:
+            if item.product_id:
+                product = Product.get_by_id(item.product_id)
+                if product and product.stock_qty < item.qty:
+                    return False, f"Cannot cancel: {product.name} has insufficient stock ({product.stock_qty} available, need {item.qty})"
+
+    # Reverse stock if it was a return
+    if credit_note.reason == 'RETURN':
+        for item in credit_note.items:
+            if item.product_id:
+                product = Product.get_by_id(item.product_id)
+                if product:
+                    product.update_stock(
+                        -item.qty,
+                        f'Credit Note #{credit_note.credit_note_number} cancelled',
+                        credit_note.id
+                    )
+
+    # Reverse invoice balance update
+    if credit_note.original_invoice_id:
+        invoice = Invoice.get_by_id(credit_note.original_invoice_id)
+        if invoice:
+            # Add back the credit note amount to balance
+            invoice.balance_due = min(invoice.grand_total, invoice.balance_due + credit_note.grand_total)
+            invoice.amount_paid = invoice.grand_total - invoice.balance_due
+
+            # Update payment status
+            if invoice.balance_due >= invoice.grand_total:
+                invoice.payment_status = 'UNPAID'
+            elif invoice.balance_due > 0:
+                invoice.payment_status = 'PARTIAL'
+            else:
+                invoice.payment_status = 'PAID'
+
+    credit_note.cancel()
+    return True, None
+
+
 @credit_notes_bp.route('/')
 @login_required
 def index():
@@ -248,8 +293,8 @@ def create_credit_note():
             )
             db.session.add(item)
 
-            # Restore stock for returns
-            if item_data['product_id'] and data.get('reason') == 'RETURN':
+            # Restore stock for returns (use stored reason, not incoming data)
+            if item_data['product_id'] and credit_note.reason == 'RETURN':
                 product = Product.get_by_id(item_data['product_id'])
                 if product:
                     product.update_stock(
@@ -327,36 +372,13 @@ def update_status(id):
 
     if new_status == 'CANCELLED':
         if credit_note.status != 'CANCELLED':
-            # Reverse stock if it was a return
-            if credit_note.reason == 'RETURN':
-                for item in credit_note.items:
-                    if item.product_id:
-                        product = Product.get_by_id(item.product_id)
-                        if product:
-                            product.update_stock(
-                                -item.qty,
-                                f'Credit Note #{credit_note.credit_note_number} cancelled',
-                                credit_note.id
-                            )
-
-            # Reverse invoice balance update
-            if credit_note.original_invoice_id:
-                invoice = Invoice.get_by_id(credit_note.original_invoice_id)
-                if invoice:
-                    # Add back the credit note amount to balance
-                    invoice.balance_due = min(invoice.grand_total, invoice.balance_due + credit_note.grand_total)
-                    invoice.amount_paid = invoice.grand_total - invoice.balance_due
-
-                    # Update payment status
-                    if invoice.balance_due >= invoice.grand_total:
-                        invoice.payment_status = 'UNPAID'
-                    elif invoice.balance_due > 0:
-                        invoice.payment_status = 'PARTIAL'
-                    else:
-                        invoice.payment_status = 'PAID'
-
-        credit_note.cancel()
-        flash(f'Credit Note {credit_note.credit_note_number} has been cancelled', 'success')
+            success, error_msg = _perform_cancellation(credit_note)
+            if not success:
+                flash(error_msg, 'error')
+                return redirect(url_for('credit_notes.view_credit_note', id=id))
+            flash(f'Credit Note {credit_note.credit_note_number} has been cancelled', 'success')
+        else:
+            flash('Credit note is already cancelled', 'warning')
     elif new_status == 'APPLIED':
         credit_note.apply()
         flash(f'Credit Note {credit_note.credit_note_number} marked as applied', 'success')
@@ -381,35 +403,11 @@ def cancel_credit_note(id):
         flash('Credit note is already cancelled', 'warning')
         return redirect(url_for('credit_notes.view_credit_note', id=id))
 
-    # Reverse stock if it was a return
-    if credit_note.reason == 'RETURN':
-        for item in credit_note.items:
-            if item.product_id:
-                product = Product.get_by_id(item.product_id)
-                if product:
-                    product.update_stock(
-                        -item.qty,
-                        f'Credit Note #{credit_note.credit_note_number} cancelled',
-                        credit_note.id
-                    )
+    success, error_msg = _perform_cancellation(credit_note)
+    if not success:
+        flash(error_msg, 'error')
+        return redirect(url_for('credit_notes.view_credit_note', id=id))
 
-    # Reverse invoice balance update
-    if credit_note.original_invoice_id:
-        invoice = Invoice.get_by_id(credit_note.original_invoice_id)
-        if invoice:
-            # Add back the credit note amount to balance
-            invoice.balance_due = min(invoice.grand_total, invoice.balance_due + credit_note.grand_total)
-            invoice.amount_paid = invoice.grand_total - invoice.balance_due
-
-            # Update payment status
-            if invoice.balance_due >= invoice.grand_total:
-                invoice.payment_status = 'UNPAID'
-            elif invoice.balance_due > 0:
-                invoice.payment_status = 'PARTIAL'
-            else:
-                invoice.payment_status = 'PAID'
-
-    credit_note.cancel()
     flash(f'Credit Note {credit_note.credit_note_number} has been cancelled', 'success')
     return redirect(url_for('credit_notes.view_credit_note', id=id))
 

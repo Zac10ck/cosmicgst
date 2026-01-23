@@ -186,24 +186,38 @@ class EmailService:
 <head>
     <meta charset="UTF-8">
     <style>
-        body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
-        .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
-        .header {{ background: #1a5276; color: white; padding: 20px; text-align: center; }}
-        .content {{ padding: 20px; background: #f8f9fa; }}
-        table {{ width: 100%; border-collapse: collapse; margin: 20px 0; }}
-        th, td {{ padding: 10px; border: 1px solid #ddd; text-align: left; }}
-        th {{ background: #f0f0f0; }}
-        .total-row {{ background: #e8f4f8; font-weight: bold; }}
-        .footer {{ padding: 20px; text-align: center; color: #666; font-size: 12px; }}
+        body {{ font-family: 'Segoe UI', Arial, sans-serif; line-height: 1.6; color: #333; background: #f5f5f5; }}
+        .container {{ max-width: 600px; margin: 0 auto; background: #fff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }}
+        .header {{ background: linear-gradient(135deg, #008B8B, #006666); color: white; padding: 25px 20px; text-align: center; }}
+        .header h1 {{ margin: 0; font-size: 24px; font-weight: 500; }}
+        .header p {{ margin: 8px 0 0 0; opacity: 0.9; font-size: 14px; }}
+        .content {{ padding: 25px; }}
+        .content p {{ margin: 0 0 15px 0; color: #555; }}
+        table {{ width: 100%; border-collapse: collapse; margin: 20px 0; border-radius: 8px; overflow: hidden; }}
+        th, td {{ padding: 12px 15px; text-align: left; }}
+        th {{ background: #E0F2F1; color: #004D40; font-weight: 600; border-bottom: 2px solid #B2DFDB; }}
+        td {{ border-bottom: 1px solid #E0E0E0; }}
+        tr:hover td {{ background: #FAFAFA; }}
+        .total-row {{ background: #E0F7FA; }}
+        .total-row th, .total-row td {{ color: #006666; font-weight: bold; font-size: 16px; }}
+        .payment-status {{ display: inline-block; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; }}
+        .status-paid {{ background: #E8F5E9; color: #2E7D32; }}
+        .status-unpaid {{ background: #FFEBEE; color: #C62828; }}
+        .status-partial {{ background: #FFF3E0; color: #EF6C00; }}
+        .footer {{ padding: 20px; text-align: center; background: #F5F5F5; border-top: 1px solid #E0E0E0; }}
+        .footer p {{ margin: 5px 0; color: #666; font-size: 12px; }}
+        .footer .company-name {{ color: #008B8B; font-weight: 600; font-size: 14px; }}
+        .cta {{ display: inline-block; background: #008B8B; color: white; padding: 12px 24px; border-radius: 6px; text-decoration: none; margin-top: 15px; }}
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
-            <h1 style="margin: 0;">Invoice Notification</h1>
+            <h1>New Invoice Created</h1>
+            <p>Invoice notification from {company_name}</p>
         </div>
         <div class="content">
-            <p>A new invoice has been created:</p>
+            <p>A new invoice has been successfully generated. Please find the details below:</p>
             <table>
                 <tr>
                     <th>Invoice Number</th>
@@ -222,20 +236,25 @@ class EmailService:
                     <td>{item_count} item(s)</td>
                 </tr>
                 <tr>
+                    <th>Payment Mode</th>
+                    <td>{getattr(invoice, 'payment_mode', 'N/A')}</td>
+                </tr>
+                <tr>
                     <th>Payment Status</th>
-                    <td>{invoice.payment_status}</td>
+                    <td><span class="payment-status status-{invoice.payment_status.lower() if invoice.payment_status else 'unpaid'}">{invoice.payment_status}</span></td>
                 </tr>
                 <tr class="total-row">
                     <th>Grand Total</th>
                     <td>{grand_total}</td>
                 </tr>
             </table>
-            <p>Please find the invoice PDF attached to this email.</p>
+            <p style="color: #008B8B;"><strong>The invoice PDF is attached to this email.</strong></p>
         </div>
         <div class="footer">
-            <p><strong>{company_name}</strong></p>
+            <p class="company-name">{company_name}</p>
             <p>{company_address}</p>
             <p>GSTIN: {company_gstin} | Phone: {company_phone}</p>
+            <p style="margin-top: 15px; color: #999;">Thank you for choosing us for your healthcare needs!</p>
         </div>
     </div>
 </body>

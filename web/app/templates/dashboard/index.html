@@ -8,27 +8,30 @@
 
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
-    <h2><i class="bi bi-speedometer2 me-2"></i>Dashboard</h2>
+    <h2 class="d-flex align-items-center">
+        <span class="material-icons-outlined me-2" style="font-size: 32px;">dashboard</span>
+        Dashboard
+    </h2>
     <div class="d-flex align-items-center gap-2">
         <span class="text-muted">{{ now.strftime('%d %b %Y') if now else '' }}</span>
         <button class="btn btn-outline-secondary btn-sm" onclick="refreshCharts()" title="Refresh Data">
-            <i class="bi bi-arrow-clockwise"></i>
+            <span class="material-icons-outlined" style="font-size: 18px; vertical-align: middle;">refresh</span>
         </button>
     </div>
 </div>
 
-<!-- Stats Cards -->
+<!-- Stats Cards - Material Design -->
 <div class="row g-3 mb-4">
     <div class="col-6 col-md-4 col-xl-3">
         <div class="card stat-card primary h-100">
             <div class="card-body">
                 <div class="d-flex justify-content-between align-items-start">
                     <div>
-                        <div class="stat-value text-primary">{{ stats.today_sales }}</div>
+                        <div class="stat-value" style="color: var(--md-primary);">{{ stats.today_sales }}</div>
                         <div class="stat-label">Today's Sales</div>
                     </div>
-                    <div class="stat-icon bg-primary bg-opacity-10 rounded-circle p-2">
-                        <i class="bi bi-currency-rupee text-primary"></i>
+                    <div class="stat-icon">
+                        <span class="material-icons-outlined">payments</span>
                     </div>
                 </div>
             </div>
@@ -39,11 +42,11 @@
             <div class="card-body">
                 <div class="d-flex justify-content-between align-items-start">
                     <div>
-                        <div class="stat-value text-success">{{ stats.today_invoices }}</div>
+                        <div class="stat-value" style="color: var(--md-success);">{{ stats.today_invoices }}</div>
                         <div class="stat-label">Invoices Today</div>
                     </div>
-                    <div class="stat-icon bg-success bg-opacity-10 rounded-circle p-2">
-                        <i class="bi bi-receipt text-success"></i>
+                    <div class="stat-icon" style="background: var(--md-success-light); color: var(--md-success);">
+                        <span class="material-icons-outlined">receipt_long</span>
                     </div>
                 </div>
             </div>
@@ -54,11 +57,11 @@
             <div class="card-body">
                 <div class="d-flex justify-content-between align-items-start">
                     <div>
-                        <div class="stat-value text-info">{{ stats.monthly_sales }}</div>
+                        <div class="stat-value" style="color: var(--md-info);">{{ stats.monthly_sales }}</div>
                         <div class="stat-label">This Month</div>
                     </div>
-                    <div class="stat-icon bg-info bg-opacity-10 rounded-circle p-2">
-                        <i class="bi bi-calendar-month text-info"></i>
+                    <div class="stat-icon" style="background: var(--md-info-light); color: var(--md-info);">
+                        <span class="material-icons-outlined">calendar_month</span>
                     </div>
                 </div>
             </div>
@@ -69,11 +72,11 @@
             <div class="card-body">
                 <div class="d-flex justify-content-between align-items-start">
                     <div>
-                        <div class="stat-value text-danger">{{ stats.total_receivables }}</div>
+                        <div class="stat-value" style="color: var(--md-error);">{{ stats.total_receivables }}</div>
                         <div class="stat-label">Receivables ({{ stats.unpaid_count }})</div>
                     </div>
-                    <div class="stat-icon bg-danger bg-opacity-10 rounded-circle p-2">
-                        <i class="bi bi-cash-stack text-danger"></i>
+                    <div class="stat-icon" style="background: var(--md-error-light); color: var(--md-error);">
+                        <span class="material-icons-outlined">account_balance_wallet</span>
                     </div>
                 </div>
             </div>
@@ -84,41 +87,41 @@
             <div class="card-body">
                 <div class="d-flex justify-content-between align-items-start">
                     <div>
-                        <div class="stat-value text-warning">{{ stats.pending_quotations }}</div>
+                        <div class="stat-value" style="color: var(--md-warning);">{{ stats.pending_quotations }}</div>
                         <div class="stat-label">Pending Quotes</div>
                     </div>
-                    <div class="stat-icon bg-warning bg-opacity-10 rounded-circle p-2">
-                        <i class="bi bi-file-text text-warning"></i>
+                    <div class="stat-icon" style="background: var(--md-warning-light); color: #E65100;">
+                        <span class="material-icons-outlined">request_quote</span>
                     </div>
                 </div>
             </div>
         </div>
     </div>
     <div class="col-6 col-md-4 col-xl-3">
-        <div class="card stat-card h-100" style="border-left-color: #6f42c1;">
+        <div class="card stat-card h-100" style="border-left-color: #7C4DFF;">
             <div class="card-body">
                 <div class="d-flex justify-content-between align-items-start">
                     <div>
-                        <div class="stat-value" style="color: #6f42c1;">{{ stats.total_customers }}</div>
+                        <div class="stat-value" style="color: #7C4DFF;">{{ stats.total_customers }}</div>
                         <div class="stat-label">Customers</div>
                     </div>
-                    <div class="stat-icon rounded-circle p-2" style="background: rgba(111,66,193,0.1);">
-                        <i class="bi bi-people" style="color: #6f42c1;"></i>
+                    <div class="stat-icon" style="background: rgba(124,77,255,0.12); color: #7C4DFF;">
+                        <span class="material-icons-outlined">groups</span>
                     </div>
                 </div>
             </div>
         </div>
     </div>
     <div class="col-6 col-md-4 col-xl-3">
-        <div class="card stat-card h-100" style="border-left-color: #fd7e14;">
+        <div class="card stat-card h-100" style="border-left-color: #FF6D00;">
             <div class="card-body">
                 <div class="d-flex justify-content-between align-items-start">
                     <div>
-                        <div class="stat-value" style="color: #fd7e14;">{{ stats.low_stock_items }}</div>
+                        <div class="stat-value" style="color: #FF6D00;">{{ stats.low_stock_items }}</div>
                         <div class="stat-label">Low Stock Items</div>
                     </div>
-                    <div class="stat-icon rounded-circle p-2" style="background: rgba(253,126,20,0.1);">
-                        <i class="bi bi-exclamation-triangle" style="color: #fd7e14;"></i>
+                    <div class="stat-icon" style="background: rgba(255,109,0,0.12); color: #FF6D00;">
+                        <span class="material-icons-outlined">warning_amber</span>
                     </div>
                 </div>
             </div>

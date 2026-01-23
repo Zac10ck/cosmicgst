@@ -191,17 +191,26 @@ def test_email():
         """
         msg.attach(MIMEText(body, 'plain'))
 
+        # Connect to SMTP server with proper handshake
         if company.smtp_use_tls:
-            server = smtplib.SMTP(company.smtp_server, company.smtp_port)
+            server = smtplib.SMTP(company.smtp_server, company.smtp_port, timeout=30)
+            server.ehlo()  # Required for Gmail
             server.starttls()
+            server.ehlo()  # Required after starttls
         else:
-            server = smtplib.SMTP_SSL(company.smtp_server, company.smtp_port)
+            server = smtplib.SMTP_SSL(company.smtp_server, company.smtp_port, timeout=30)
 
         server.login(company.smtp_username, company.smtp_password)
         server.send_message(msg)
         server.quit()
 
         flash(f'Test email sent successfully to {test_to}', 'success')
+    except smtplib.SMTPAuthenticationError as e:
+        flash(f'Authentication failed: Check username and app password. Error: {str(e)}', 'error')
+    except smtplib.SMTPConnectError as e:
+        flash(f'Could not connect to SMTP server: {str(e)}', 'error')
+    except smtplib.SMTPException as e:
+        flash(f'SMTP Error: {str(e)}', 'error')
     except Exception as e:
         flash(f'Error: {str(e)}', 'error')
 

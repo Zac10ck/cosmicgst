@@ -647,8 +647,85 @@ def check_eway_bill_required(id):
 @login_required
 def eway_bill_dashboard():
     """E-Way Bill dashboard showing all e-Way bills with expiry status"""
-    # Ultra minimal test - just return text
-    return "E-Way Dashboard works! Template test pending."
+    from datetime import datetime, timedelta
+
+    now = datetime.utcnow()
+    today = now.date()
+
+    expired = []
+    expiring_soon = []
+    valid = []
+    pending = []
+    state_codes = {}
+
+    try:
+        from app.services.eway_bill_service import STATE_CODES
+        state_codes = STATE_CODES
+
+        # Get invoices with e-Way bill numbers
+        eway_invoices = Invoice.query.filter(
+            Invoice.eway_bill_number != '',
+            Invoice.eway_bill_number.isnot(None),
+            Invoice.is_cancelled == False
+        ).order_by(Invoice.invoice_date.desc()).all()
+
+        for inv in eway_invoices:
+            inv_data = {
+                'invoice': inv,
+                'status': 'valid',
+                'days_remaining': None,
+                'hours_remaining': None,
+                'days_expired': 0
+            }
+
+            valid_until = getattr(inv, 'eway_bill_valid_until', None)
+            if valid_until:
+                if valid_until < now:
+                    inv_data['status'] = 'expired'
+                    inv_data['days_expired'] = (now - valid_until).days
+                    expired.append(inv_data)
+                elif valid_until < now + timedelta(hours=24):
+                    inv_data['status'] = 'expiring_soon'
+                    inv_data['hours_remaining'] = int((valid_until - now).total_seconds() / 3600)
+                    expiring_soon.append(inv_data)
+                else:
+                    inv_data['days_remaining'] = (valid_until - now).days
+                    valid.append(inv_data)
+            else:
+                valid.append(inv_data)
+
+        # Get invoices needing e-Way bill
+        pending_invoices = Invoice.query.filter(
+            Invoice.grand_total >= EWAY_BILL_THRESHOLD,
+            (Invoice.eway_bill_number == '') | (Invoice.eway_bill_number.is_(None)),
+            Invoice.is_cancelled == False,
+            Invoice.invoice_date >= today - timedelta(days=30)
+        ).order_by(Invoice.invoice_date.desc()).all()
+
+        for inv in pending_invoices:
+            pending.append({
+                'invoice': inv,
+                'status': 'pending',
+                'days_old': (today - inv.invoice_date).days
+            })
+
+    except Exception as e:
+        print(f"E-Way dashboard error: {e}")
+        flash(f'Error loading data: {str(e)}', 'warning')
+
+    return render_template(
+        'billing/eway_dashboard.html',
+        expired=expired,
+        expiring_soon=expiring_soon,
+        valid=valid,
+        pending=pending,
+        total_expired=len(expired),
+        total_expiring=len(expiring_soon),
+        total_valid=len(valid),
+        total_pending=len(pending),
+        state_codes=state_codes,
+        now=now
+    )
 
 
 @billing_bp.route('/invoices/<int:id>/eway-bill/renew', methods=['POST'])

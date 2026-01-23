@@ -55,10 +55,11 @@
         </div>
 
         <!-- Items from Invoice -->
-        {% if invoice_items %}
+        {% if returnable_items %}
         <div class="card mb-3">
             <div class="card-header">
                 <i class="bi bi-list-check me-1"></i>Select Items to Credit
+                <span class="badge bg-info float-end">{{ returnable_items|length }} items available</span>
             </div>
             <div class="card-body p-0">
                 <div class="table-responsive">
@@ -69,14 +70,16 @@
                                     <input type="checkbox" class="form-check-input" id="select-all">
                                 </th>
                                 <th>Product</th>
-                                <th class="text-center">Invoiced</th>
+                                <th class="text-center">Original</th>
+                                <th class="text-center">Already Credited</th>
+                                <th class="text-center text-success">Remaining</th>
                                 <th style="width: 100px;">Credit Qty</th>
                                 <th class="text-end">Rate</th>
                                 <th class="text-center">GST</th>
                             </tr>
                         </thead>
                         <tbody>
-                            {% for item in invoice_items %}
+                            {% for item in returnable_items %}
                             <tr>
                                 <td>
                                     <input type="checkbox" class="form-check-input item-select"
@@ -86,16 +89,24 @@
                                            data-unit="{{ item.unit }}"
                                            data-rate="{{ item.rate }}"
                                            data-gst="{{ item.gst_rate }}"
-                                           data-max-qty="{{ item.qty }}">
+                                           data-max-qty="{{ item.remaining_qty }}">
                                 </td>
                                 <td>
                                     <strong>{{ item.product_name }}</strong>
                                     <br><small class="text-muted">{{ item.hsn_code or '-' }}</small>
                                 </td>
-                                <td class="text-center">{{ "%.2f"|format(item.qty) }} {{ item.unit }}</td>
+                                <td class="text-center">{{ "%.2f"|format(item.original_qty) }}</td>
+                                <td class="text-center">
+                                    {% if item.already_credited > 0 %}
+                                    <span class="text-warning">{{ "%.2f"|format(item.already_credited) }}</span>
+                                    {% else %}
+                                    <span class="text-muted">0</span>
+                                    {% endif %}
+                                </td>
+                                <td class="text-center text-success fw-bold">{{ "%.2f"|format(item.remaining_qty) }} {{ item.unit }}</td>
                                 <td>
                                     <input type="number" class="form-control form-control-sm credit-qty"
-                                           value="{{ item.qty }}" min="0.01" max="{{ item.qty }}" step="0.01" disabled>
+                                           value="{{ item.remaining_qty }}" min="0.01" max="{{ item.remaining_qty }}" step="0.01" disabled>
                                 </td>
                                 <td class="text-end">{{ "%.2f"|format(item.rate) }}</td>
                                 <td class="text-center">{{ "%.0f"|format(item.gst_rate) }}%</td>
@@ -105,6 +116,13 @@
                     </table>
                 </div>
             </div>
+        </div>
+        {% elif invoice %}
+        <!-- Invoice exists but all items fully credited -->
+        <div class="alert alert-warning">
+            <i class="bi bi-exclamation-triangle me-2"></i>
+            <strong>All items from this invoice have already been credited.</strong>
+            <p class="mb-0 mt-2">No remaining quantity available for credit note.</p>
         </div>
         {% else %}
         <!-- Manual Item Entry -->
@@ -227,9 +245,25 @@ document.querySelectorAll('.item-select').forEach(cb => {
     });
 });
 
-// Qty change
+// Qty change with validation
 document.querySelectorAll('.credit-qty').forEach(input => {
-    input.addEventListener('change', updateTotals);
+    input.addEventListener('change', function() {
+        const row = this.closest('tr');
+        const cb = row.querySelector('.item-select');
+        const maxQty = parseFloat(cb.dataset.maxQty) || 0;
+        const qty = parseFloat(this.value) || 0;
+
+        // Visual feedback for invalid quantity
+        if (qty > maxQty) {
+            this.classList.add('is-invalid');
+            this.value = maxQty; // Auto-correct to max
+        } else if (qty <= 0) {
+            this.classList.add('is-invalid');
+        } else {
+            this.classList.remove('is-invalid');
+        }
+        updateTotals();
+    });
 });
 
 async function updateTotals() {
@@ -289,9 +323,34 @@ async function updateTotals() {
     }
 }
 
+// Client-side quantity validation
+function validateQuantities() {
+    const errors = [];
+    document.querySelectorAll('.item-select:checked').forEach(cb => {
+        const row = cb.closest('tr');
+        const qty = parseFloat(row.querySelector('.credit-qty').value) || 0;
+        const maxQty = parseFloat(cb.dataset.maxQty) || 0;
+        const productName = cb.dataset.productName;
+
+        if (qty <= 0) {
+            errors.push(`${productName}: Quantity must be greater than 0`);
+        } else if (qty > maxQty) {
+            errors.push(`${productName}: Cannot credit ${qty}, only ${maxQty} remaining`);
+        }
+    });
+    return errors;
+}
+
 document.getElementById('submit-credit-note').addEventListener('click', async function() {
     if (selectedItems.length === 0) {
         alert('Please select items to credit');
+        return;
+    }
+
+    // Client-side validation
+    const validationErrors = validateQuantities();
+    if (validationErrors.length > 0) {
+        alert('Validation errors:\n\n' + validationErrors.join('\n'));
         return;
     }
 
@@ -321,7 +380,12 @@ document.getElementById('submit-credit-note').addEventListener('click', async fu
             alert(result.message);
             window.location.href = '/credit-notes/' + result.credit_note_id;
         } else {
-            alert('Error: ' + (result.error || 'Failed to create credit note'));
+            // Show detailed errors if available
+            let errorMsg = result.error || 'Failed to create credit note';
+            if (result.details && result.details.length > 0) {
+                errorMsg += '\n\n' + result.details.join('\n');
+            }
+            alert('Error: ' + errorMsg);
         }
     } catch (e) {
         console.error(e);

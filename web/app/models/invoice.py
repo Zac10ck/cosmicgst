@@ -38,6 +38,8 @@ class Invoice(db.Model):
     transport_distance = db.Column(db.Integer, default=0)
     transporter_id = db.Column(db.String(20), default='')
     eway_bill_number = db.Column(db.String(20), default='')
+    is_over_dimensional = db.Column(db.Boolean, default=False)  # Over Dimensional Cargo
+    port_code = db.Column(db.String(10), default='')  # For air/sea transport
 
     # B2B/B2C classification (GST compliance)
     supply_type = db.Column(db.String(10), default='B2C')  # B2B or B2C

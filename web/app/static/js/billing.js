@@ -93,20 +93,114 @@ class BillingCart {
             });
         }
 
-        // Vehicle number - format to uppercase
+        // Vehicle number - format to uppercase with validation
         const vehicleInput = document.getElementById('vehicle-number');
         if (vehicleInput) {
             vehicleInput.addEventListener('input', (e) => {
                 e.target.value = e.target.value.toUpperCase();
             });
+            vehicleInput.addEventListener('blur', (e) => {
+                this.validateVehicleNumber(e.target);
+            });
         }
 
-        // Transporter ID - format to uppercase
+        // Transporter ID - format to uppercase with validation
         const transporterInput = document.getElementById('transporter-id');
         if (transporterInput) {
             transporterInput.addEventListener('input', (e) => {
                 e.target.value = e.target.value.toUpperCase();
+                this.validateGSTIN(e.target);
             });
+        }
+
+        // Transport mode change - show/hide port code
+        const transportModeSelect = document.getElementById('transport-mode');
+        if (transportModeSelect) {
+            transportModeSelect.addEventListener('change', (e) => {
+                this.togglePortCodeField(e.target.value);
+            });
+        }
+
+        // Over-dimensional cargo checkbox - update validity
+        const odcCheckbox = document.getElementById('is-over-dimensional');
+        if (odcCheckbox) {
+            odcCheckbox.addEventListener('change', () => {
+                const distance = parseInt(document.getElementById('transport-distance')?.value) || 0;
+                this.updateEwayValidity(distance);
+            });
+        }
+
+        // Buyer state code dropdown
+        const buyerStateSelect = document.getElementById('buyer-state-code');
+        if (buyerStateSelect) {
+            buyerStateSelect.addEventListener('change', () => {
+                this.calculateTotals();
+            });
+        }
+    }
+
+    validateVehicleNumber(input) {
+        const value = input.value.replace(/[-\s]/g, '').toUpperCase();
+        const errorDiv = document.getElementById('vehicle-number-error');
+
+        if (!value) {
+            input.classList.remove('is-invalid');
+            if (errorDiv) errorDiv.textContent = '';
+            return true;
+        }
+
+        // Pattern: 2 letters + 1-2 digits + 1-3 letters + 1-4 digits
+        const pattern = /^[A-Z]{2}\d{1,2}[A-Z]{1,3}\d{1,4}$/;
+
+        if (!pattern.test(value)) {
+            input.classList.add('is-invalid');
+            if (errorDiv) errorDiv.textContent = 'Invalid format. Expected: KL-01-AB-1234';
+            return false;
+        }
+
+        input.classList.remove('is-invalid');
+        if (errorDiv) errorDiv.textContent = '';
+        return true;
+    }
+
+    validateGSTIN(input) {
+        const value = input.value.toUpperCase().trim();
+        const errorDiv = document.getElementById('transporter-id-error');
+
+        if (!value) {
+            input.classList.remove('is-invalid');
+            if (errorDiv) errorDiv.textContent = '';
+            return true;
+        }
+
+        // GSTIN pattern: 2 digits + 5 letters + 4 digits + 1 letter + 1 alphanumeric + Z + 1 alphanumeric
+        const pattern = /^\d{2}[A-Z]{5}\d{4}[A-Z]{1}[A-Z\d]{1}Z[A-Z\d]{1}$/;
+
+        if (value.length !== 15) {
+            input.classList.add('is-invalid');
+            if (errorDiv) errorDiv.textContent = 'GSTIN must be 15 characters';
+            return false;
+        }
+
+        if (!pattern.test(value)) {
+            input.classList.add('is-invalid');
+            if (errorDiv) errorDiv.textContent = 'Invalid GSTIN format';
+            return false;
+        }
+
+        input.classList.remove('is-invalid');
+        if (errorDiv) errorDiv.textContent = '';
+        return true;
+    }
+
+    togglePortCodeField(transportMode) {
+        const portCodeGroup = document.getElementById('port-code-group');
+        if (portCodeGroup) {
+            if (transportMode === 'Air' || transportMode === 'Ship') {
+                portCodeGroup.style.display = 'block';
+            } else {
+                portCodeGroup.style.display = 'none';
+            }
         }
     }
 
@@ -446,10 +540,20 @@ class BillingCart {
         if (!validityInfo) return;
 
         if (distanceKm > 0) {
-            // Calculate validity: 1 day per 100 km (or part thereof)
-            const validityDays = Math.max(1, Math.ceil(distanceKm / 100));
-            validityInfo.textContent = `E-Way bill validity: ${validityDays} day(s)`;
-            validityInfo.className = 'text-info';
+            const isODC = document.getElementById('is-over-dimensional')?.checked || false;
+            let validityDays;
+
+            if (isODC) {
+                // ODC: 1 day per 20 km (or part thereof)
+                validityDays = Math.max(1, Math.ceil(distanceKm / 20));
+                validityInfo.textContent = `E-Way bill validity: ${validityDays} day(s) (ODC: 20 km/day)`;
+                validityInfo.className = 'text-warning';
+            } else {
+                // Regular: 1 day per 100 km (or part thereof)
+                validityDays = Math.max(1, Math.ceil(distanceKm / 100));
+                validityInfo.textContent = `E-Way bill validity: ${validityDays} day(s)`;
+                validityInfo.className = 'text-info';
+            }
         } else {
             validityInfo.textContent = '';
         }
@@ -471,10 +575,35 @@ class BillingCart {
         const vehicleNumber = document.getElementById('vehicle-number')?.value || '';
         const transportDistance = parseInt(document.getElementById('transport-distance')?.value) || 0;
         const transporterId = document.getElementById('transporter-id')?.value || '';
+        const isOverDimensional = document.getElementById('is-over-dimensional')?.checked || false;
+        const portCode = document.getElementById('port-code')?.value || '';
+        const buyerStateCodeSelect = document.getElementById('buyer-state-code');
+        const buyerStateCode = buyerStateCodeSelect?.value || this.customer?.state_code || '';
+
+        // Validate vehicle number if provided
+        const vehicleInput = document.getElementById('vehicle-number');
+        if (vehicleNumber && vehicleInput && !this.validateVehicleNumber(vehicleInput)) {
+            alert('Please enter a valid vehicle number format (e.g., KL-01-AB-1234)');
+            return;
+        }
+
+        // Validate transporter GSTIN if provided
+        const transporterInput = document.getElementById('transporter-id');
+        if (transporterId && transporterInput && !this.validateGSTIN(transporterInput)) {
+            alert('Please enter a valid GSTIN for Transporter ID');
+            return;
+        }
 
         // Warn if e-Way bill is required but no vehicle number provided
         if (this.totals.grand_total >= this.EWAY_THRESHOLD && !vehicleNumber) {
             if (!confirm('E-Way bill is required for invoices over Rs. ' + this.EWAY_THRESHOLD.toLocaleString() + '.\n\nVehicle number is not provided. Continue anyway?')) {
+                return;
+            }
+        }
+
+        // Warn if Air/Sea transport but no port code
+        if ((transportMode === 'Air' || transportMode === 'Ship') && !portCode) {
+            if (!confirm(`Port code is recommended for ${transportMode} transport. Continue anyway?`)) {
                 return;
             }
         }
@@ -490,7 +619,7 @@ class BillingCart {
                     items: this.items,
                     customer_id: this.customer?.id || null,
                     customer_name: this.customer?.name || 'Walk-in Customer',
-                    buyer_state_code: this.customer?.state_code || null,
+                    buyer_state_code: buyerStateCode || this.customer?.state_code || null,
                     discount: this.discount,
                     payment_mode: paymentMode,
                     // GST options
@@ -499,7 +628,9 @@ class BillingCart {
                     transport_mode: transportMode,
                     vehicle_number: vehicleNumber,
                     transport_distance: transportDistance,
-                    transporter_id: transporterId
+                    transporter_id: transporterId,
+                    is_over_dimensional: isOverDimensional,
+                    port_code: portCode
                 })
             });
 

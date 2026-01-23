@@ -174,6 +174,162 @@ def validate_eway_bill_number(eway_number: str) -> Tuple[bool, str]:
     return True, ""
 
 
+def validate_vehicle_number(vehicle_number: str) -> Tuple[bool, str]:
+    """
+    Validate Indian vehicle registration number format.
+
+    Valid formats:
+    - KL-01-AB-1234 (with hyphens)
+    - KL01AB1234 (without hyphens)
+    - KL 01 AB 1234 (with spaces)
+
+    Args:
+        vehicle_number: Vehicle registration number
+
+    Returns:
+        Tuple of (is_valid: bool, error_message: str)
+    """
+    import re
+
+    if not vehicle_number:
+        return True, ""  # Optional field
+
+    # Remove spaces and hyphens, convert to uppercase
+    cleaned = vehicle_number.upper().replace('-', '').replace(' ', '')
+
+    # Pattern: 2 letters (state) + 2 digits (district) + 1-3 letters + 1-4 digits
+    # Examples: KL01AB1234, DL8CAF1234, MH12DE1234
+    pattern = r'^[A-Z]{2}\d{1,2}[A-Z]{1,3}\d{1,4}$'
+
+    if not re.match(pattern, cleaned):
+        return False, "Invalid vehicle number format. Expected: KL-01-AB-1234"
+
+    return True, ""
+
+
+def validate_gstin(gstin: str) -> Tuple[bool, str]:
+    """
+    Validate GSTIN (Goods and Services Tax Identification Number) format.
+
+    GSTIN format: 15 characters
+    - 2 digits: State code
+    - 10 characters: PAN
+    - 1 character: Entity number
+    - 1 character: 'Z' (default)
+    - 1 character: Checksum
+
+    Args:
+        gstin: GSTIN to validate
+
+    Returns:
+        Tuple of (is_valid: bool, error_message: str)
+    """
+    import re
+
+    if not gstin:
+        return True, ""  # Optional field
+
+    gstin = gstin.upper().strip()
+
+    if len(gstin) != 15:
+        return False, "GSTIN must be exactly 15 characters"
+
+    # Pattern: 2 digits + 5 letters + 4 digits + 1 letter + 1 alphanumeric + Z + 1 alphanumeric
+    pattern = r'^\d{2}[A-Z]{5}\d{4}[A-Z]{1}[A-Z\d]{1}Z[A-Z\d]{1}$'
+
+    if not re.match(pattern, gstin):
+        return False, "Invalid GSTIN format. Expected: 22AAAAA0000A1Z5"
+
+    # Validate state code
+    state_code = gstin[:2]
+    if state_code not in STATE_CODES:
+        return False, f"Invalid state code in GSTIN: {state_code}"
+
+    return True, ""
+
+
+def validate_pincode(pincode: str) -> Tuple[bool, str]:
+    """
+    Validate Indian PIN code format.
+
+    PIN code format: 6 digits, first digit cannot be 0
+
+    Args:
+        pincode: PIN code to validate
+
+    Returns:
+        Tuple of (is_valid: bool, error_message: str)
+    """
+    if not pincode:
+        return True, ""  # Optional field
+
+    pincode = str(pincode).strip()
+
+    if not pincode.isdigit():
+        return False, "PIN code must contain only digits"
+
+    if len(pincode) != 6:
+        return False, "PIN code must be exactly 6 digits"
+
+    if pincode[0] == '0':
+        return False, "Invalid PIN code: first digit cannot be 0"
+
+    return True, ""
+
+
+def validate_hsn_code(hsn_code: str) -> Tuple[bool, str]:
+    """
+    Validate HSN (Harmonized System of Nomenclature) code format.
+
+    HSN code format: 4, 6, or 8 digits for goods
+    SAC code format: 6 digits starting with 99 for services
+
+    Args:
+        hsn_code: HSN/SAC code to validate
+
+    Returns:
+        Tuple of (is_valid: bool, error_message: str)
+    """
+    if not hsn_code:
+        return True, ""  # Optional field
+
+    hsn_code = str(hsn_code).strip()
+
+    if not hsn_code.isdigit():
+        return False, "HSN/SAC code must contain only digits"
+
+    if len(hsn_code) not in [4, 6, 8]:
+        return False, "HSN code must be 4, 6, or 8 digits"
+
+    return True, ""
+
+
+def format_vehicle_number(vehicle_number: str) -> str:
+    """
+    Format vehicle number to standard format with hyphens.
+
+    Args:
+        vehicle_number: Raw vehicle number
+
+    Returns:
+        Formatted vehicle number (e.g., KL-01-AB-1234)
+    """
+    import re
+
+    if not vehicle_number:
+        return ""
+
+    # Remove spaces and hyphens, convert to uppercase
+    cleaned = vehicle_number.upper().replace('-', '').replace(' ', '')
+
+    # Try to format as: XX-00-XX-0000
+    match = re.match(r'^([A-Z]{2})(\d{1,2})([A-Z]{1,3})(\d{1,4})$', cleaned)
+    if match:
+        return f"{match.group(1)}-{match.group(2).zfill(2)}-{match.group(3)}-{match.group(4)}"
+
+    return vehicle_number.upper()
+
+
 def generate_eway_bill_data(invoice, company, customer=None) -> Dict[str, Any]:
     """
     Generate e-Way Bill data structure for GST portal upload.

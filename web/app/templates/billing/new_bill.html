@@ -156,7 +156,7 @@
             <div class="collapse" id="ewayBillSection">
                 <div class="card-body">
                     <div class="row g-3">
-                        <div class="col-12">
+                        <div class="col-md-6">
                             <label class="form-label">Transport Mode</label>
                             <select class="form-select" id="transport-mode">
                                 {% for value, label in transport_modes %}
@@ -164,22 +164,50 @@
                                 {% endfor %}
                             </select>
                         </div>
-                        <div class="col-12">
+                        <div class="col-md-6">
+                            <label class="form-label">Place of Supply (State)</label>
+                            <select class="form-select" id="buyer-state-code">
+                                <option value="">-- Same as Company --</option>
+                                {% for code, name in state_codes.items() %}
+                                <option value="{{ code }}">{{ code }} - {{ name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-6">
                             <label class="form-label">Vehicle Number</label>
                             <input type="text" class="form-control text-uppercase" id="vehicle-number"
-                                   placeholder="KL-01-AB-1234">
+                                   placeholder="KL-01-AB-1234" pattern="[A-Z]{2}[- ]?\d{1,2}[- ]?[A-Z]{1,3}[- ]?\d{1,4}">
                             <small class="text-muted">Format: KL-01-AB-1234</small>
+                            <div class="invalid-feedback" id="vehicle-number-error"></div>
                         </div>
-                        <div class="col-12">
+                        <div class="col-md-6">
                             <label class="form-label">Transport Distance (km)</label>
                             <input type="number" class="form-control" id="transport-distance"
-                                   min="0" value="0" placeholder="Distance in km">
+                                   min="0" max="5000" value="0" placeholder="Distance in km">
                             <small class="text-muted" id="validity-info"></small>
                         </div>
-                        <div class="col-12">
+                        <div class="col-md-6">
                             <label class="form-label">Transporter ID (GSTIN)</label>
                             <input type="text" class="form-control text-uppercase" id="transporter-id"
-                                   placeholder="Optional - Transporter's GSTIN">
+                                   placeholder="Optional - Transporter's GSTIN" maxlength="15">
+                            <div class="invalid-feedback" id="transporter-id-error"></div>
+                        </div>
+                        <div class="col-md-6" id="port-code-group" style="display: none;">
+                            <label class="form-label">Port Code</label>
+                            <input type="text" class="form-control text-uppercase" id="port-code"
+                                   placeholder="Port code for Air/Sea transport" maxlength="10">
+                            <small class="text-muted">Required for Air/Sea transport</small>
+                        </div>
+                        <div class="col-12">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="is-over-dimensional">
+                                <label class="form-check-label" for="is-over-dimensional">
+                                    <strong>Over Dimensional Cargo (ODC)</strong>
+                                </label>
+                                <div class="form-text">
+                                    Enable for oversized cargo. ODC has shorter validity: 1 day per 20 km instead of 100 km
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>

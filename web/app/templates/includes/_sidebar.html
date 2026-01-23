@@ -21,9 +21,15 @@
                 </a>
             </li>
             <li class="nav-item">
-                <a class="nav-link {{ 'active' if request.endpoint and request.endpoint.startswith('billing.') and request.endpoint != 'billing.new_bill' }}"
+                <a class="nav-link {{ 'active' if request.endpoint and request.endpoint.startswith('billing.') and request.endpoint != 'billing.new_bill' and request.endpoint != 'billing.eway_bill_dashboard' }}"
                    href="{{ url_for('billing.invoice_list') }}">
                     <i class="bi bi-receipt me-2"></i>Invoices
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link {{ 'active' if request.endpoint == 'billing.eway_bill_dashboard' }}"
+                   href="{{ url_for('billing.eway_bill_dashboard') }}">
+                    <i class="bi bi-truck me-2"></i>E-Way Bills
                 </a>
             </li>
             <li class="nav-item">

@@ -62,6 +62,8 @@ try:
             ('invoices', 'eway_bill_status', "VARCHAR(20) DEFAULT ''"),
             ('invoices', 'eway_bill_generated_at', "TIMESTAMP NULL"),
             ('invoices', 'eway_bill_valid_until', "TIMESTAMP NULL"),
+            ('invoices', 'is_over_dimensional', "BOOLEAN DEFAULT FALSE"),
+            ('invoices', 'port_code', "VARCHAR(10) DEFAULT ''"),
             # Product table - SAC code support
             ('products', 'is_service', "BOOLEAN DEFAULT FALSE"),
             ('products', 'sac_code', "VARCHAR(8) DEFAULT ''"),

@@ -38,6 +38,8 @@ EWAY_BILL_THRESHOLD = 50000
 @login_required
 def new_bill():
     """New bill page"""
+    from app.services.eway_bill_service import STATE_CODES
+
     company = Company.get()
     customers = Customer.get_all()
     next_invoice_number = Invoice.get_next_invoice_number()
@@ -50,6 +52,7 @@ def new_bill():
         payment_modes=PAYMENT_MODES,
         transport_modes=TRANSPORT_MODES,
         eway_threshold=EWAY_BILL_THRESHOLD,
+        state_codes=STATE_CODES,
         today=date.today().isoformat()
     )
 
@@ -120,6 +123,8 @@ def create_invoice():
         vehicle_number = data.get('vehicle_number', '').strip().upper()
         transport_distance = int(data.get('transport_distance', 0) or 0)
         transporter_id = data.get('transporter_id', '').strip().upper()
+        is_over_dimensional = data.get('is_over_dimensional', False)
+        port_code = data.get('port_code', '').strip().upper()
 
         # Create invoice
         invoice = Invoice(
@@ -149,6 +154,8 @@ def create_invoice():
             vehicle_number=vehicle_number,
             transport_distance=transport_distance,
             transporter_id=transporter_id,
+            is_over_dimensional=is_over_dimensional,
+            port_code=port_code,
             created_by=current_user.id
         )
 
@@ -565,6 +572,9 @@ def export_eway_bill_json(id):
 @login_required
 def save_eway_bill_number(id):
     """Save e-Way Bill number after manual portal entry"""
+    from datetime import datetime, timedelta
+    from app.services.eway_bill_service import validate_eway_bill_number, calculate_eway_validity
+
     invoice = Invoice.get_by_id(id)
     if not invoice:
         return jsonify({'error': 'Invoice not found'}), 404
@@ -576,15 +586,34 @@ def save_eway_bill_number(id):
         return jsonify({'error': 'E-Way Bill number is required'}), 400
 
     # Validate format (12 digits)
-    if not eway_number.isdigit() or len(eway_number) != 12:
-        return jsonify({'error': 'E-Way Bill number must be 12 digits'}), 400
+    is_valid, error_msg = validate_eway_bill_number(eway_number)
+    if not is_valid:
+        return jsonify({'error': error_msg}), 400
 
+    # Save the e-Way bill number
     invoice.eway_bill_number = eway_number
+
+    # Calculate and store validity
+    distance = invoice.transport_distance or 0
+    is_odc = getattr(invoice, 'is_over_dimensional', False)
+    validity_days = calculate_eway_validity(distance, is_odc)
+
+    # Set status and timestamps
+    now = datetime.utcnow()
+    invoice.eway_bill_status = 'generated'
+    invoice.eway_bill_generated_at = now
+    invoice.eway_bill_valid_until = now + timedelta(days=validity_days)
+
     db.session.commit()
+
+    valid_until = invoice.eway_bill_valid_until.strftime('%d-%b-%Y %H:%M') if invoice.eway_bill_valid_until else ''
 
     return jsonify({
         'success': True,
-        'message': f'E-Way Bill number {eway_number} saved successfully'
+        'message': f'E-Way Bill number {eway_number} saved successfully',
+        'validity_days': validity_days,
+        'valid_until': valid_until,
+        'status': 'generated'
     })
 
 
@@ -611,4 +640,135 @@ def check_eway_bill_required(id):
         'eway_bill_number': invoice.eway_bill_number or None,
         'transport_distance': invoice.transport_distance or 0,
         'validity_days': validity_days
+    })
+
+
+@billing_bp.route('/eway-bill/dashboard')
+@login_required
+def eway_bill_dashboard():
+    """E-Way Bill dashboard showing all e-Way bills with expiry status"""
+    from datetime import datetime, timedelta
+    from app.services.eway_bill_service import STATE_CODES
+
+    now = datetime.utcnow()
+    today = now.date()
+
+    # Get all invoices with e-Way bill numbers
+    eway_invoices = Invoice.query.filter(
+        Invoice.eway_bill_number != '',
+        Invoice.eway_bill_number.isnot(None),
+        Invoice.is_cancelled == False
+    ).order_by(Invoice.invoice_date.desc()).all()
+
+    # Categorize by status
+    expired = []
+    expiring_soon = []  # Within 24 hours
+    valid = []
+    pending = []  # Required but not generated
+
+    for inv in eway_invoices:
+        inv_data = {
+            'invoice': inv,
+            'status': 'unknown',
+            'days_remaining': None,
+            'hours_remaining': None
+        }
+
+        if inv.eway_bill_valid_until:
+            if inv.eway_bill_valid_until < now:
+                inv_data['status'] = 'expired'
+                inv_data['days_expired'] = (now - inv.eway_bill_valid_until).days
+                expired.append(inv_data)
+            elif inv.eway_bill_valid_until < now + timedelta(hours=24):
+                inv_data['status'] = 'expiring_soon'
+                delta = inv.eway_bill_valid_until - now
+                inv_data['hours_remaining'] = int(delta.total_seconds() / 3600)
+                expiring_soon.append(inv_data)
+            else:
+                inv_data['status'] = 'valid'
+                inv_data['days_remaining'] = (inv.eway_bill_valid_until - now).days
+                valid.append(inv_data)
+        else:
+            # Has e-Way bill number but no validity set (legacy data)
+            inv_data['status'] = 'valid'
+            valid.append(inv_data)
+
+    # Get invoices that require e-Way bill but don't have one
+    pending_invoices = Invoice.query.filter(
+        Invoice.grand_total >= EWAY_BILL_THRESHOLD,
+        (Invoice.eway_bill_number == '') | (Invoice.eway_bill_number.is_(None)),
+        Invoice.is_cancelled == False,
+        Invoice.invoice_date >= today - timedelta(days=30)  # Last 30 days
+    ).order_by(Invoice.invoice_date.desc()).all()
+
+    for inv in pending_invoices:
+        pending.append({
+            'invoice': inv,
+            'status': 'pending',
+            'days_old': (today - inv.invoice_date).days
+        })
+
+    return render_template(
+        'billing/eway_dashboard.html',
+        expired=expired,
+        expiring_soon=expiring_soon,
+        valid=valid,
+        pending=pending,
+        total_expired=len(expired),
+        total_expiring=len(expiring_soon),
+        total_valid=len(valid),
+        total_pending=len(pending),
+        state_codes=STATE_CODES,
+        now=now
+    )
+
+
+@billing_bp.route('/invoices/<int:id>/eway-bill/renew', methods=['POST'])
+@login_required
+def renew_eway_bill(id):
+    """Mark e-Way bill for renewal (clear old number to allow new one)"""
+    invoice = Invoice.get_by_id(id)
+    if not invoice:
+        return jsonify({'error': 'Invoice not found'}), 404
+
+    # Store old e-Way bill number for reference
+    old_eway_number = invoice.eway_bill_number
+
+    # Clear e-Way bill fields to allow renewal
+    invoice.eway_bill_number = ''
+    invoice.eway_bill_status = 'pending_renewal'
+    invoice.eway_bill_generated_at = None
+    invoice.eway_bill_valid_until = None
+
+    db.session.commit()
+
+    return jsonify({
+        'success': True,
+        'message': f'E-Way Bill {old_eway_number} marked for renewal. Generate new e-Way bill on portal.',
+        'redirect': url_for('billing.view_invoice', id=id)
+    })
+
+
+@billing_bp.route('/invoices/<int:id>/eway-bill/cancel', methods=['POST'])
+@login_required
+def cancel_eway_bill(id):
+    """Mark e-Way bill as cancelled"""
+    invoice = Invoice.get_by_id(id)
+    if not invoice:
+        return jsonify({'error': 'Invoice not found'}), 404
+
+    data = request.get_json()
+    reason = data.get('reason', '')
+
+    if not reason:
+        return jsonify({'error': 'Cancellation reason is required'}), 400
+
+    # Mark as cancelled
+    invoice.eway_bill_status = 'cancelled'
+
+    db.session.commit()
+
+    return jsonify({
+        'success': True,
+        'message': f'E-Way Bill {invoice.eway_bill_number} marked as cancelled'
     })

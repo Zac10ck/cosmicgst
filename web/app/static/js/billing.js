@@ -480,29 +480,27 @@ class BillingCart {
             } else {
                 tbody.innerHTML = this.items.map((item, index) => `
                     <tr>
-                        <td>
+                        <td title="${this.escapeHtml(item.product_name)}">
                             <strong>${this.escapeHtml(item.product_name)}</strong>
                             <br><small class="text-muted">${item.hsn_code || '-'}</small>
                         </td>
                         <td>
-                            <input type="number" class="form-control form-control-sm"
+                            <input type="number" class="form-control form-control-sm text-center"
                                    value="${item.qty}" min="0.01" step="0.01"
-                                   onchange="cart.updateQuantity(${index}, this.value)"
-                                   style="width: 70px;">
+                                   onchange="cart.updateQuantity(${index}, this.value)">
                         </td>
-                        <td>${item.unit}</td>
+                        <td class="text-center">${item.unit}</td>
                         <td>
-                            <input type="number" class="form-control form-control-sm"
+                            <input type="number" class="form-control form-control-sm text-end"
                                    value="${item.rate.toFixed(2)}" min="0" step="0.01"
-                                   onchange="cart.updateRate(${index}, this.value)"
-                                   style="width: 90px;">
+                                   onchange="cart.updateRate(${index}, this.value)">
                         </td>
                         <td class="text-end">${(item.taxable_value || item.qty * item.rate).toFixed(2)}</td>
-                        <td class="text-center">${item.gst_rate}%</td>
-                        <td class="text-end">${(item.total || (item.qty * item.rate * (1 + item.gst_rate/100))).toFixed(2)}</td>
-                        <td>
-                            <button type="button" class="btn btn-sm btn-outline-danger" onclick="cart.removeItem(${index})">
-                                <i class="bi bi-trash"></i>
+                        <td class="text-center"><span class="badge bg-secondary">${item.gst_rate}%</span></td>
+                        <td class="text-end fw-bold">${(item.total || (item.qty * item.rate * (1 + item.gst_rate/100))).toFixed(2)}</td>
+                        <td class="text-center">
+                            <button type="button" class="btn btn-sm btn-outline-danger" onclick="cart.removeItem(${index})" title="Remove">
+                                <i class="bi bi-x-lg"></i>
                             </button>
                         </td>
                     </tr>

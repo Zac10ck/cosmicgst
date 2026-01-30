@@ -1,7 +1,8 @@
 """Billing blueprint - New bill creation and invoice management"""
+import threading
 from datetime import date
 from io import BytesIO
-from flask import Blueprint, render_template, redirect, url_for, flash, request, jsonify, send_file
+from flask import Blueprint, render_template, redirect, url_for, flash, request, jsonify, send_file, current_app
 from flask_login import login_required, current_user
 from app.extensions import db
 from app.models.product import Product
@@ -12,6 +13,34 @@ from app.models.activity_log import ActivityLog
 from app.services.gst_calculator import GSTCalculator
 from app.services.pdf_generator import pdf_generator
 from app.services.invoice_email_service import send_invoice_created_email, send_invoice_cancelled_email
+
+
+def send_email_async(app, invoice_id, company_data, action='created'):
+    """Send email in background thread"""
+    with app.app_context():
+        try:
+            from app.models.invoice import Invoice
+            from app.models.company import Company
+            from app.services.pdf_generator import pdf_generator
+            from app.services.invoice_email_service import send_invoice_created_email, send_invoice_cancelled_email
+
+            invoice = Invoice.query.get(invoice_id)
+            if not invoice:
+                print(f"[EMAIL] Invoice {invoice_id} not found for email")
+                return
+
+            company = Company.query.first()
+            items = list(invoice.items)
+            pdf_bytes = pdf_generator.generate_invoice_pdf(invoice, company, items)
+
+            if action == 'created':
+                send_invoice_created_email(invoice, company, pdf_bytes)
+            elif action == 'cancelled':
+                send_invoice_cancelled_email(invoice, company, pdf_bytes)
+
+            print(f"[EMAIL] Background email sent for invoice {invoice.invoice_number}")
+        except Exception as e:
+            print(f"[EMAIL] Background email failed: {e}")
 
 billing_bp = Blueprint('billing', __name__, url_prefix='/billing')
 
@@ -231,13 +260,14 @@ def create_invoice():
             user_agent=str(request.user_agent)
         )
 
-        # Send email notification with PDF attachment
+        # Send email notification in background thread (non-blocking)
         try:
-            items = list(invoice.items)
-            pdf_bytes = pdf_generator.generate_invoice_pdf(invoice, company, items)
-            send_invoice_created_email(invoice, company, pdf_bytes)
+            app = current_app._get_current_object()
+            thread = threading.Thread(target=send_email_async, args=(app, invoice.id, None, 'created'))
+            thread.daemon = True
+            thread.start()
         except Exception as e:
-            print(f"[EMAIL] Error sending invoice email: {e}")
+            print(f"[EMAIL] Error starting email thread: {e}")
 
         # Check if e-Way bill is required
         eway_required = cart_total['grand_total'] >= EWAY_BILL_THRESHOLD
@@ -458,14 +488,14 @@ def cancel_invoice(id):
         user_agent=str(request.user_agent)
     )
 
-    # Send cancellation email notification with PDF attachment
+    # Send cancellation email notification in background thread (non-blocking)
     try:
-        company = Company.get()
-        items = list(invoice.items)
-        pdf_bytes = pdf_generator.generate_invoice_pdf(invoice, company, items)
-        send_invoice_cancelled_email(invoice, company, pdf_bytes)
+        app = current_app._get_current_object()
+        thread = threading.Thread(target=send_email_async, args=(app, invoice.id, None, 'cancelled'))
+        thread.daemon = True
+        thread.start()
     except Exception as e:
-        print(f"[EMAIL] Error sending cancellation email: {e}")
+        print(f"[EMAIL] Error starting cancellation email thread: {e}")
 
     flash(f'Invoice {invoice.invoice_number} has been cancelled', 'success')
     return redirect(url_for('billing.view_invoice', id=id))

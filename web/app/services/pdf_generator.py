@@ -315,53 +315,30 @@ class PDFGenerator:
         is_cancelled = getattr(invoice, 'is_cancelled', False)
         doc_title = 'BILL OF SUPPLY' if invoice_type == 'BILL_OF_SUPPLY' else 'TAX INVOICE'
 
-        # 1. Premium Header with gradient-style effect
-        elements.extend(self._build_premium_header(company, doc_title, invoice, is_cancelled))
+        # 1. Compact Header
+        elements.extend(self._build_compact_header(company, doc_title, invoice, is_cancelled))
 
-        # 2. Invoice Summary Cards
-        elements.extend(self._build_invoice_summary_cards(invoice))
+        # 2. Billing Parties (From/To) - Compact
+        elements.extend(self._build_compact_billing_parties(company, invoice))
 
-        # 3. Billing Parties (From/To)
-        elements.extend(self._build_modern_billing_parties(company, invoice))
-
-        # 4. Items Table with modern styling
+        # 3. Items Table with modern styling
         elements.extend(self._build_modern_items_table(items))
 
-        # 5. HSN Summary
+        # 4. Totals Section with Amount in Words
+        elements.extend(self._build_compact_totals(invoice))
+
+        # 5. HSN Summary (compact)
         hsn_summary = self._calculate_hsn_summary(items)
         if hsn_summary:
-            elements.extend(self._build_modern_hsn_summary(hsn_summary))
+            elements.extend(self._build_compact_hsn_summary(hsn_summary))
 
-        # 6. Totals Section - Premium Design
-        elements.extend(self._build_premium_totals(invoice))
-
-        # 7. Amount in Words - Highlighted
-        elements.append(Spacer(1, 3*mm))
-        amount_words_table = Table(
-            [[Paragraph(f"<b>Amount in Words:</b> {number_to_words_indian(invoice.grand_total)}",
-                       self.styles['AmountWords'])]],
-            colWidths=[self.content_width]
-        )
-        amount_words_table.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (-1, -1), COLORS['bg_light']),
-            ('BOX', (0, 0), (-1, -1), 1, COLORS['border']),
-            ('TOPPADDING', (0, 0), (-1, -1), 3*mm),
-            ('BOTTOMPADDING', (0, 0), (-1, -1), 3*mm),
-            ('LEFTPADDING', (0, 0), (-1, -1), 4*mm),
-        ]))
-        elements.append(amount_words_table)
-
-        # 8. E-Way Bill Info
+        # 6. E-Way Bill Info (if exists)
         eway_number = getattr(invoice, 'eway_bill_number', '')
         if eway_number:
             elements.extend(self._build_eway_bill_section(invoice))
 
-        # 9. Bank Details & Payment Info
-        if company and (company.bank_name or company.bank_account):
-            elements.extend(self._build_modern_bank_details(company))
-
-        # 10. Premium Footer
-        elements.extend(self._build_premium_footer(company))
+        # 7. Bank Details & Payment Info
+        elements.extend(self._build_compact_footer_section(company, invoice))
 
         doc.build(elements)
         buffer.seek(0)
@@ -937,6 +914,325 @@ class PDFGenerator:
         ))
         elements.append(Paragraph(
             "<font size='7' color='#9e9e9e'>This is a computer-generated invoice and does not require a physical signature.</font>",
+            self.styles['FooterCenter']
+        ))
+
+        return elements
+
+    # ============ COMPACT INVOICE METHODS ============
+
+    def _build_compact_header(self, company, doc_type, doc, is_cancelled=False):
+        """Build compact header"""
+        elements = []
+
+        # Get document details
+        if hasattr(doc, 'invoice_number'):
+            doc_number = doc.invoice_number
+            doc_date = doc.invoice_date
+        elif hasattr(doc, 'quotation_number'):
+            doc_number = doc.quotation_number
+            doc_date = doc.quotation_date
+        elif hasattr(doc, 'credit_note_number'):
+            doc_number = doc.credit_note_number
+            doc_date = doc.credit_note_date
+        else:
+            doc_number = 'N/A'
+            doc_date = date.today()
+
+        # Company Name & Details (Left)
+        company_name = company.name if company else 'Company Name'
+        left_content = []
+        left_content.append([Paragraph(f"<font color='#1a237e' size='18'><b>{company_name}</b></font>", self.styles['CompanyName'])])
+
+        if company:
+            if company.address:
+                left_content.append([Paragraph(f"{company.address}", self.styles['CompanyDetails'])])
+            contact_parts = []
+            if company.phone:
+                contact_parts.append(f"Ph: {company.phone}")
+            if company.email:
+                contact_parts.append(f"{company.email}")
+            if contact_parts:
+                left_content.append([Paragraph(' | '.join(contact_parts), self.styles['CompanyDetails'])])
+            if company.gstin:
+                left_content.append([Paragraph(f"<b>GSTIN:</b> {company.gstin}", self.styles['CompanyDetails'])])
+
+        left_table = Table(left_content, colWidths=[110*mm])
+        left_table.setStyle(TableStyle([
+            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+            ('LEFTPADDING', (0, 0), (-1, -1), 0),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 0.3*mm),
+        ]))
+
+        # Invoice Info (Right)
+        payment_status = getattr(doc, 'payment_status', 'UNPAID')
+        status_color = '#00c853' if payment_status == 'PAID' else '#ff6d00' if payment_status == 'PARTIAL' else '#d50000'
+
+        right_content = [
+            [Paragraph(f"<font size='12'><b>{doc_number}</b></font>", self.styles['InvoiceNumber'])],
+            [Paragraph(f"{doc_date.strftime('%d %b %Y') if doc_date else ''}", self.styles['InvoiceInfo'])],
+            [Paragraph(f"<font color='{status_color}'><b>{payment_status}</b></font>", self.styles['InvoiceInfo'])]
+        ]
+        right_table = Table(right_content, colWidths=[60*mm])
+        right_table.setStyle(TableStyle([
+            ('ALIGN', (0, 0), (-1, -1), 'RIGHT'),
+            ('BACKGROUND', (0, 0), (-1, -1), COLORS['bg_card']),
+            ('BOX', (0, 0), (-1, -1), 1, COLORS['border']),
+            ('TOPPADDING', (0, 0), (-1, -1), 2*mm),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 2*mm),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 3*mm),
+        ]))
+
+        header_table = Table([[left_table, right_table]], colWidths=[125*mm, 65*mm])
+        elements.append(header_table)
+        elements.append(Spacer(1, 2*mm))
+
+        # Document Title Bar
+        title_bg = COLORS['danger'] if is_cancelled else COLORS['primary']
+        title_text = f"{doc_type} - CANCELLED" if is_cancelled else doc_type
+
+        title_table = Table([[Paragraph(title_text, self.styles['DocTitle'])]], colWidths=[self.content_width])
+        title_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, -1), title_bg),
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('TOPPADDING', (0, 0), (-1, -1), 2*mm),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 2*mm),
+        ]))
+        elements.append(title_table)
+        elements.append(Spacer(1, 3*mm))
+
+        return elements
+
+    def _build_compact_billing_parties(self, company, invoice):
+        """Build compact billing parties - two columns"""
+        elements = []
+
+        customer = getattr(invoice, 'customer', None)
+        customer_name = invoice.customer_name or 'Walk-in Customer'
+
+        # FROM Section
+        from_lines = []
+        if company:
+            from_lines.append(Paragraph(f"<b>{company.name}</b>", self.styles['PartyName']))
+            if company.address:
+                from_lines.append(Paragraph(company.address, self.styles['PartyDetails']))
+            if company.gstin:
+                from_lines.append(Paragraph(f"GSTIN: {company.gstin}", self.styles['PartyDetails']))
+            if company.phone:
+                from_lines.append(Paragraph(f"Ph: {company.phone}", self.styles['PartyDetails']))
+
+        from_content = [[Paragraph("<font color='#1a237e'><b>FROM</b></font>", self.styles['SectionHeader'])]]
+        from_content.extend([[p] for p in from_lines])
+
+        from_table = Table(from_content, colWidths=[90*mm])
+        from_table.setStyle(TableStyle([
+            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+            ('BACKGROUND', (0, 0), (-1, -1), COLORS['bg_white']),
+            ('BOX', (0, 0), (-1, -1), 0.5, COLORS['border']),
+            ('LINEBELOW', (0, 0), (-1, 0), 1.5, COLORS['primary']),
+            ('TOPPADDING', (0, 0), (-1, -1), 1.5*mm),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 1.5*mm),
+            ('LEFTPADDING', (0, 0), (-1, -1), 2*mm),
+        ]))
+
+        # TO Section
+        to_lines = []
+        to_lines.append(Paragraph(f"<b>{customer_name}</b>", self.styles['PartyName']))
+        if customer:
+            if customer.address:
+                to_lines.append(Paragraph(customer.address, self.styles['PartyDetails']))
+            if customer.gstin:
+                to_lines.append(Paragraph(f"GSTIN: {customer.gstin}", self.styles['PartyDetails']))
+            if hasattr(customer, 'phone') and customer.phone:
+                to_lines.append(Paragraph(f"Ph: {customer.phone}", self.styles['PartyDetails']))
+
+        to_content = [[Paragraph("<font color='#1a237e'><b>TO</b></font>", self.styles['SectionHeader'])]]
+        to_content.extend([[p] for p in to_lines])
+
+        to_table = Table(to_content, colWidths=[90*mm])
+        to_table.setStyle(TableStyle([
+            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+            ('BACKGROUND', (0, 0), (-1, -1), COLORS['bg_card']),
+            ('BOX', (0, 0), (-1, -1), 0.5, COLORS['primary']),
+            ('LINEBELOW', (0, 0), (-1, 0), 1.5, COLORS['primary']),
+            ('TOPPADDING', (0, 0), (-1, -1), 1.5*mm),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 1.5*mm),
+            ('LEFTPADDING', (0, 0), (-1, -1), 2*mm),
+        ]))
+
+        parties_table = Table([[from_table, to_table]], colWidths=[95*mm, 95*mm])
+        elements.append(parties_table)
+        elements.append(Spacer(1, 3*mm))
+
+        return elements
+
+    def _build_compact_totals(self, invoice):
+        """Build compact totals with amount in words"""
+        elements = []
+        elements.append(Spacer(1, 2*mm))
+
+        # Build totals rows
+        totals_data = []
+        totals_data.append(['Subtotal', format_currency(invoice.subtotal)])
+
+        if invoice.cgst_total and invoice.cgst_total > 0:
+            totals_data.append(['CGST', format_currency(invoice.cgst_total)])
+            totals_data.append(['SGST', format_currency(invoice.sgst_total)])
+        if invoice.igst_total and invoice.igst_total > 0:
+            totals_data.append(['IGST', format_currency(invoice.igst_total)])
+        if invoice.discount and invoice.discount > 0:
+            totals_data.append(['Discount', f"- {format_currency(invoice.discount)}"])
+
+        totals_table = Table(totals_data, colWidths=[30*mm, 40*mm])
+        totals_table.setStyle(TableStyle([
+            ('ALIGN', (0, 0), (-1, -1), 'RIGHT'),
+            ('FONTSIZE', (0, 0), (-1, -1), 9),
+            ('BACKGROUND', (0, 0), (-1, -1), COLORS['bg_light']),
+            ('TOPPADDING', (0, 0), (-1, -1), 1.5*mm),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 1.5*mm),
+            ('LEFTPADDING', (0, 0), (-1, -1), 2*mm),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 2*mm),
+        ]))
+
+        # Grand Total
+        grand_table = Table([['GRAND TOTAL', format_currency(invoice.grand_total)]], colWidths=[30*mm, 40*mm])
+        grand_table.setStyle(TableStyle([
+            ('ALIGN', (0, 0), (-1, -1), 'RIGHT'),
+            ('FONTNAME', (0, 0), (-1, -1), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, -1), 11),
+            ('BACKGROUND', (0, 0), (-1, -1), COLORS['primary']),
+            ('TEXTCOLOR', (0, 0), (-1, -1), COLORS['text_white']),
+            ('TOPPADDING', (0, 0), (-1, -1), 2*mm),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 2*mm),
+            ('LEFTPADDING', (0, 0), (-1, -1), 2*mm),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 2*mm),
+        ]))
+
+        # Combine
+        combined = Table([[totals_table], [grand_table]], colWidths=[70*mm])
+        combined.setStyle(TableStyle([
+            ('LEFTPADDING', (0, 0), (-1, -1), 0),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 0),
+            ('TOPPADDING', (0, 0), (-1, -1), 0),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 0),
+        ]))
+
+        # Amount in words (left side)
+        words_para = Paragraph(f"<b>In Words:</b> {number_to_words_indian(invoice.grand_total)}", self.styles['PartyDetails'])
+
+        # Layout: words on left, totals on right
+        layout = Table([[words_para, combined]], colWidths=[115*mm, 75*mm])
+        layout.setStyle(TableStyle([
+            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+            ('ALIGN', (1, 0), (1, 0), 'RIGHT'),
+        ]))
+        elements.append(layout)
+
+        return elements
+
+    def _build_compact_hsn_summary(self, hsn_summary):
+        """Build compact HSN summary"""
+        elements = []
+        elements.append(Spacer(1, 2*mm))
+
+        has_igst = any(v['igst'] > 0 for v in hsn_summary.values())
+
+        if has_igst:
+            headers = ['HSN', 'Taxable', 'Rate', 'IGST']
+            col_widths = [25*mm, 35*mm, 20*mm, 30*mm]
+        else:
+            headers = ['HSN', 'Taxable', 'CGST', 'SGST']
+            col_widths = [25*mm, 35*mm, 25*mm, 25*mm]
+
+        data = [headers]
+        for hsn, values in hsn_summary.items():
+            if has_igst:
+                data.append([hsn, format_number(values['taxable']), f"{values['gst_rate']:.0f}%", format_number(values['igst'])])
+            else:
+                data.append([hsn, format_number(values['taxable']), format_number(values['cgst']), format_number(values['sgst'])])
+
+        table = Table(data, colWidths=col_widths)
+        table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), COLORS['primary_light']),
+            ('TEXTCOLOR', (0, 0), (-1, 0), COLORS['text_white']),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, -1), 8),
+            ('ALIGN', (1, 0), (-1, -1), 'RIGHT'),
+            ('BOX', (0, 0), (-1, -1), 0.5, COLORS['border']),
+            ('INNERGRID', (0, 0), (-1, -1), 0.25, COLORS['table_border']),
+            ('TOPPADDING', (0, 0), (-1, -1), 1.5*mm),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 1.5*mm),
+        ]))
+
+        # Wrap with label
+        hsn_label = Paragraph("<font size='8' color='#616161'><b>HSN Summary</b></font>", self.styles['PartyDetails'])
+        wrapper = Table([[hsn_label], [table]], colWidths=[110*mm])
+
+        elements.append(wrapper)
+        return elements
+
+    def _build_compact_footer_section(self, company, invoice):
+        """Build compact footer with bank details and payment info"""
+        elements = []
+        elements.append(Spacer(1, 3*mm))
+
+        # Payment Mode
+        payment_mode = getattr(invoice, 'payment_mode', 'CASH')
+        payment_labels = {'CASH': 'Cash', 'CARD': 'Card', 'UPI': 'UPI', 'BANK': 'Bank Transfer', 'CREDIT': 'Credit'}
+        payment_text = payment_labels.get(payment_mode, payment_mode)
+
+        # Left: Bank Details | Right: Payment & Signature
+        left_content = []
+
+        if company and (company.bank_name or company.bank_account):
+            left_content.append([Paragraph("<b>Bank Details</b>", self.styles['BankHeader'])])
+            if company.bank_name:
+                left_content.append([Paragraph(f"Bank: {company.bank_name}", self.styles['BankDetails'])])
+            if company.bank_account:
+                left_content.append([Paragraph(f"A/C: {company.bank_account}", self.styles['BankDetails'])])
+            if company.bank_ifsc:
+                left_content.append([Paragraph(f"IFSC: {company.bank_ifsc}", self.styles['BankDetails'])])
+
+        # Terms
+        terms_text = company.invoice_terms if company and company.invoice_terms else "E&OE. Goods once sold will not be taken back."
+        left_content.append([Spacer(1, 2*mm)])
+        left_content.append([Paragraph(f"<font size='7' color='#616161'>{terms_text}</font>", self.styles['Footer'])])
+
+        left_table = Table(left_content, colWidths=[100*mm])
+        left_table.setStyle(TableStyle([
+            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+            ('LEFTPADDING', (0, 0), (-1, -1), 0),
+        ]))
+
+        # Right: Payment + Signature
+        company_name = company.name if company else 'Company'
+        right_content = [
+            [Paragraph(f"<b>Payment Mode:</b> {payment_text}", self.styles['PartyDetails'])],
+            [Spacer(1, 8*mm)],
+            [Paragraph(f"For <b>{company_name}</b>", self.styles['PartyDetails'])],
+            [Spacer(1, 10*mm)],
+            [Paragraph("____________________", self.styles['FooterCenter'])],
+            [Paragraph("Authorized Signatory", self.styles['FooterCenter'])]
+        ]
+        right_table = Table(right_content, colWidths=[70*mm])
+        right_table.setStyle(TableStyle([
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+        ]))
+
+        footer_table = Table([[left_table, right_table]], colWidths=[115*mm, 75*mm])
+        footer_table.setStyle(TableStyle([
+            ('VALIGN', (0, 0), (0, 0), 'TOP'),
+            ('VALIGN', (1, 0), (1, 0), 'TOP'),
+        ]))
+        elements.append(footer_table)
+
+        # Thank you line
+        elements.append(Spacer(1, 3*mm))
+        elements.append(HRFlowable(width="100%", thickness=0.5, color=COLORS['border']))
+        elements.append(Spacer(1, 1*mm))
+        elements.append(Paragraph(
+            "<font size='8' color='#1a237e'><b>Thank you for your business!</b></font>",
             self.styles['FooterCenter']
         ))
 

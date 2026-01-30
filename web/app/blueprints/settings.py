@@ -67,6 +67,7 @@ def company():
         company.pan = request.form.get('pan', '').strip().upper()
         company.invoice_prefix = request.form.get('invoice_prefix', 'INV').strip().upper()
         company.invoice_terms = request.form.get('invoice_terms', '').strip()
+        company.invoice_style = request.form.get('invoice_style', 'classic').strip()
 
         company.save()
         flash('Company settings saved successfully', 'success')

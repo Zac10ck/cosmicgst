@@ -24,6 +24,7 @@ class Company(db.Model):
     # Invoice Settings
     invoice_prefix = db.Column(db.String(10), default='INV')
     invoice_terms = db.Column(db.Text, default='')
+    invoice_style = db.Column(db.String(20), default='classic')  # classic or modern
 
     # Email Settings
     smtp_server = db.Column(db.String(200), default='')
@@ -71,6 +72,7 @@ class Company(db.Model):
             'bank_ifsc': self.bank_ifsc,
             'invoice_prefix': self.invoice_prefix,
             'invoice_terms': self.invoice_terms,
+            'invoice_style': getattr(self, 'invoice_style', 'classic'),
             'smtp_server': self.smtp_server,
             'smtp_port': self.smtp_port,
             'smtp_username': self.smtp_username,

@@ -28,12 +28,20 @@
                                    value="{{ company.name if company else '' }}"
                                    placeholder="Your Business Name">
                         </div>
-                        <div class="col-md-4">
+                        <div class="col-md-2">
                             <label class="form-label">Invoice Prefix</label>
                             <input type="text" class="form-control" name="invoice_prefix"
                                    value="{{ company.invoice_prefix if company else 'INV' }}"
                                    placeholder="INV" maxlength="10">
                             <small class="text-muted">e.g., INV, BILL</small>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">Invoice Style</label>
+                            <select class="form-select" name="invoice_style">
+                                <option value="classic" {{ 'selected' if not company or company.invoice_style == 'classic' else '' }}>Classic</option>
+                                <option value="modern" {{ 'selected' if company and company.invoice_style == 'modern' else '' }}>Modern</option>
+                            </select>
+                            <small class="text-muted">PDF design</small>
                         </div>
                         <div class="col-12">
                             <label class="form-label">Address</label>

@@ -1,9 +1,10 @@
-"""Reports blueprint - Sales, GST, Stock, and GSTR-1 reports"""
+"""Reports blueprint - Sales, GST, Stock, and GSTR-1 reports (Admin only)"""
 from datetime import date, datetime, timedelta
 from io import BytesIO
 from flask import Blueprint, render_template, request, send_file, flash, jsonify
 from flask_login import login_required
 from sqlalchemy import func, extract
+from app.decorators import admin_required
 from openpyxl import Workbook
 from openpyxl.styles import Font, Alignment, Border, Side, PatternFill
 from app.extensions import db
@@ -32,6 +33,7 @@ def get_financial_year_dates(fy_year=None):
 
 @reports_bp.route('/')
 @login_required
+@admin_required
 def index():
     """Reports dashboard"""
     return render_template('reports/index.html')
@@ -39,6 +41,7 @@ def index():
 
 @reports_bp.route('/sales')
 @login_required
+@admin_required
 def sales_report():
     """Sales report - daily, monthly, yearly summaries"""
     report_type = request.args.get('type', 'daily')
@@ -130,6 +133,7 @@ def sales_report():
 
 @reports_bp.route('/gst')
 @login_required
+@admin_required
 def gst_report():
     """GST report - tax summary by rate"""
     start_date_str = request.args.get('start_date', '')
@@ -198,6 +202,7 @@ def gst_report():
 
 @reports_bp.route('/stock')
 @login_required
+@admin_required
 def stock_report():
     """Stock report - current inventory levels"""
     search = request.args.get('search', '').strip()
@@ -248,6 +253,7 @@ def stock_report():
 
 @reports_bp.route('/gstr1')
 @login_required
+@admin_required
 def gstr1_report():
     """GSTR-1 report - monthly/quarterly GST return data"""
     month = request.args.get('month', type=int)
@@ -316,6 +322,7 @@ def gstr1_report():
 
 @reports_bp.route('/gstr1/export')
 @login_required
+@admin_required
 def export_gstr1():
     """Export GSTR-1 data to Excel"""
     month = request.args.get('month', type=int)
@@ -528,6 +535,7 @@ def export_gstr1():
 
 @reports_bp.route('/gstr3b')
 @login_required
+@admin_required
 def gstr3b_report():
     """GSTR-3B summary report - Monthly return filing summary"""
     month = request.args.get('month', date.today().month, type=int)
@@ -653,6 +661,7 @@ def gstr3b_report():
 
 @reports_bp.route('/gstr3b/export')
 @login_required
+@admin_required
 def export_gstr3b():
     """Export GSTR-3B to Excel"""
     month = request.args.get('month', date.today().month, type=int)
@@ -773,6 +782,7 @@ def export_gstr3b():
 
 @reports_bp.route('/sales/export')
 @login_required
+@admin_required
 def export_sales():
     """Export sales report to Excel"""
     start_date_str = request.args.get('start_date', '')
@@ -862,6 +872,7 @@ def export_sales():
 
 @reports_bp.route('/stock/export')
 @login_required
+@admin_required
 def export_stock():
     """Export stock report to Excel"""
     products = Product.query.filter_by(is_active=True).order_by(Product.name).all()
@@ -921,6 +932,7 @@ def export_stock():
 
 @reports_bp.route('/aging')
 @login_required
+@admin_required
 def customer_aging_report():
     """Customer aging report - outstanding payments by age"""
     # Get all unpaid/partial invoices
@@ -999,6 +1011,7 @@ def customer_aging_report():
 
 @reports_bp.route('/top-products')
 @login_required
+@admin_required
 def top_products_report():
     """Top selling products report"""
     start_date_str = request.args.get('start_date', '')
@@ -1061,6 +1074,7 @@ def top_products_report():
 
 @reports_bp.route('/customer-sales')
 @login_required
+@admin_required
 def customer_sales_report():
     """Customer-wise sales analysis"""
     start_date_str = request.args.get('start_date', '')
@@ -1124,6 +1138,7 @@ def customer_sales_report():
 
 @reports_bp.route('/profit-loss')
 @login_required
+@admin_required
 def profit_loss_report():
     """Simple Profit & Loss report"""
     start_date_str = request.args.get('start_date', '')

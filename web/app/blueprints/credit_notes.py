@@ -1,9 +1,10 @@
-"""Credit Notes blueprint - Create and manage credit notes"""
+"""Credit Notes blueprint - Create and manage credit notes (Admin only)"""
 from datetime import date
 from io import BytesIO
 from flask import Blueprint, render_template, redirect, url_for, flash, request, jsonify, send_file
 from flask_login import login_required, current_user
 from app.extensions import db
+from app.decorators import admin_required
 from app.models.product import Product
 from app.models.customer import Customer
 from app.models.company import Company
@@ -62,6 +63,7 @@ def _perform_cancellation(credit_note):
 
 @credit_notes_bp.route('/')
 @login_required
+@admin_required
 def index():
     """List all credit notes"""
     status = request.args.get('status', '')
@@ -95,6 +97,7 @@ def index():
 
 @credit_notes_bp.route('/new')
 @login_required
+@admin_required
 def new_credit_note():
     """New credit note page - requires invoice selection"""
     invoice_id = request.args.get('invoice_id', type=int)
@@ -163,6 +166,7 @@ def new_credit_note():
 
 @credit_notes_bp.route('/create', methods=['POST'])
 @login_required
+@admin_required
 def create_credit_note():
     """Create new credit note - with proper validation against original invoice"""
     try:
@@ -333,6 +337,7 @@ def create_credit_note():
 
 @credit_notes_bp.route('/<int:id>')
 @login_required
+@admin_required
 def view_credit_note(id):
     """View credit note details"""
     credit_note = CreditNote.get_by_id(id)
@@ -358,6 +363,7 @@ def view_credit_note(id):
 
 @credit_notes_bp.route('/<int:id>/status', methods=['POST'])
 @login_required
+@admin_required
 def update_status(id):
     """Update credit note status"""
     credit_note = CreditNote.get_by_id(id)
@@ -392,6 +398,7 @@ def update_status(id):
 
 @credit_notes_bp.route('/<int:id>/cancel', methods=['POST'])
 @login_required
+@admin_required
 def cancel_credit_note(id):
     """Cancel credit note"""
     credit_note = CreditNote.get_by_id(id)
@@ -414,6 +421,7 @@ def cancel_credit_note(id):
 
 @credit_notes_bp.route('/from-invoice/<int:invoice_id>')
 @login_required
+@admin_required
 def from_invoice(invoice_id):
     """Create credit note from invoice"""
     return redirect(url_for('credit_notes.new_credit_note', invoice_id=invoice_id))
@@ -422,6 +430,7 @@ def from_invoice(invoice_id):
 # API endpoints
 @credit_notes_bp.route('/api/invoice/<int:invoice_id>')
 @login_required
+@admin_required
 def api_get_invoice(invoice_id):
     """Get invoice details for credit note creation"""
     invoice = Invoice.get_by_id(invoice_id)
@@ -439,6 +448,7 @@ def api_get_invoice(invoice_id):
 
 @credit_notes_bp.route('/<int:id>/pdf')
 @login_required
+@admin_required
 def download_pdf(id):
     """Download credit note as PDF"""
     credit_note = CreditNote.get_by_id(id)

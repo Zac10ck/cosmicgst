@@ -9,6 +9,7 @@ from app.models.quotation import Quotation, QuotationItem
 from app.models.credit_note import CreditNote, CreditNoteItem
 from app.models.debit_note import DebitNote, DebitNoteItem
 from app.models.email_queue import EmailQueue
+from app.models.activity_log import ActivityLog
 
 __all__ = [
     'User',
@@ -27,4 +28,5 @@ __all__ = [
     'DebitNote',
     'DebitNoteItem',
     'EmailQueue',
+    'ActivityLog',
 ]

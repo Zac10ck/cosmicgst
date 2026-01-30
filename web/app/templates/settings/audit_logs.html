@@ -1,0 +1,186 @@
+{% extends "base.html" %}
+
+{% block title %}Audit Logs - Settings{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h4 class="mb-0">
+            <span class="material-icons-outlined me-2">history</span>Audit Logs
+        </h4>
+        <a href="{{ url_for('settings.index') }}" class="btn btn-outline-secondary">
+            <span class="material-icons-outlined">arrow_back</span> Back to Settings
+        </a>
+    </div>
+
+    <!-- Filters -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <form method="GET" class="row g-3">
+                <div class="col-md-2">
+                    <label class="form-label">User</label>
+                    <select name="user_id" class="form-select">
+                        <option value="">All Users</option>
+                        {% for user in users %}
+                        <option value="{{ user.id }}" {% if selected_user == user.id %}selected{% endif %}>
+                            {{ user.username }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">Action</label>
+                    <select name="action" class="form-select">
+                        <option value="">All Actions</option>
+                        {% for a in actions %}
+                        <option value="{{ a }}" {% if selected_action == a %}selected{% endif %}>{{ a }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">Entity Type</label>
+                    <select name="entity_type" class="form-select">
+                        <option value="">All Types</option>
+                        {% for e in entity_types %}
+                        <option value="{{ e }}" {% if selected_entity == e %}selected{% endif %}>{{ e }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">Time Period</label>
+                    <select name="days" class="form-select">
+                        <option value="1" {% if selected_days == 1 %}selected{% endif %}>Last 24 hours</option>
+                        <option value="7" {% if selected_days == 7 %}selected{% endif %}>Last 7 days</option>
+                        <option value="30" {% if selected_days == 30 %}selected{% endif %}>Last 30 days</option>
+                        <option value="90" {% if selected_days == 90 %}selected{% endif %}>Last 90 days</option>
+                    </select>
+                </div>
+                <div class="col-md-2 d-flex align-items-end">
+                    <button type="submit" class="btn btn-primary me-2">
+                        <span class="material-icons-outlined">filter_list</span> Filter
+                    </button>
+                    <a href="{{ url_for('settings.audit_logs') }}" class="btn btn-outline-secondary">
+                        <span class="material-icons-outlined">clear</span>
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Logs Table -->
+    <div class="card">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Timestamp</th>
+                            <th>User</th>
+                            <th>Action</th>
+                            <th>Entity</th>
+                            <th>Description</th>
+                            <th>IP Address</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for log in logs.items %}
+                        <tr>
+                            <td>
+                                <small>{{ log.created_at.strftime('%d-%b-%Y %H:%M:%S') }}</small>
+                            </td>
+                            <td>
+                                {% if log.user %}
+                                <span class="badge bg-secondary">{{ log.user.username }}</span>
+                                {% else %}
+                                <span class="text-muted">System</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if log.action == 'LOGIN' %}
+                                <span class="badge bg-success">{{ log.action }}</span>
+                                {% elif log.action == 'LOGOUT' %}
+                                <span class="badge bg-info">{{ log.action }}</span>
+                                {% elif log.action == 'CREATE' %}
+                                <span class="badge bg-primary">{{ log.action }}</span>
+                                {% elif log.action == 'UPDATE' %}
+                                <span class="badge bg-warning text-dark">{{ log.action }}</span>
+                                {% elif log.action == 'DELETE' or log.action == 'CANCEL' %}
+                                <span class="badge bg-danger">{{ log.action }}</span>
+                                {% else %}
+                                <span class="badge bg-secondary">{{ log.action }}</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <strong>{{ log.entity_type }}</strong>
+                                {% if log.entity_name %}
+                                <br><small class="text-muted">{{ log.entity_name }}</small>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <small>{{ log.description }}</small>
+                            </td>
+                            <td>
+                                <code>{{ log.ip_address or '-' }}</code>
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="6" class="text-center py-4">
+                                <span class="material-icons-outlined text-muted" style="font-size: 48px;">history</span>
+                                <p class="text-muted mt-2">No activity logs found</p>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        {% if logs.pages > 1 %}
+        <div class="card-footer">
+            <nav aria-label="Page navigation">
+                <ul class="pagination justify-content-center mb-0">
+                    {% if logs.has_prev %}
+                    <li class="page-item">
+                        <a class="page-link" href="{{ url_for('settings.audit_logs', page=logs.prev_num, user_id=selected_user, action=selected_action, entity_type=selected_entity, days=selected_days) }}">
+                            Previous
+                        </a>
+                    </li>
+                    {% endif %}
+
+                    {% for page_num in logs.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+                        {% if page_num %}
+                            {% if page_num == logs.page %}
+                            <li class="page-item active">
+                                <span class="page-link">{{ page_num }}</span>
+                            </li>
+                            {% else %}
+                            <li class="page-item">
+                                <a class="page-link" href="{{ url_for('settings.audit_logs', page=page_num, user_id=selected_user, action=selected_action, entity_type=selected_entity, days=selected_days) }}">
+                                    {{ page_num }}
+                                </a>
+                            </li>
+                            {% endif %}
+                        {% else %}
+                            <li class="page-item disabled"><span class="page-link">...</span></li>
+                        {% endif %}
+                    {% endfor %}
+
+                    {% if logs.has_next %}
+                    <li class="page-item">
+                        <a class="page-link" href="{{ url_for('settings.audit_logs', page=logs.next_num, user_id=selected_user, action=selected_action, entity_type=selected_entity, days=selected_days) }}">
+                            Next
+                        </a>
+                    </li>
+                    {% endif %}
+                </ul>
+            </nav>
+        </div>
+        {% endif %}
+    </div>
+
+    <div class="text-muted mt-3">
+        <small>Showing {{ logs.items|length }} of {{ logs.total }} logs</small>
+    </div>
+</div>
+{% endblock %}

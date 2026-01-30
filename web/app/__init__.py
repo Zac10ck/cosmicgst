@@ -35,6 +35,14 @@ def create_app(config_name=None):
     with app.app_context():
         db.create_all()
 
+    # Context processor to inject app info into all templates
+    @app.context_processor
+    def inject_app_info():
+        return {
+            'app_version': app.config.get('APP_VERSION', '1.0.0'),
+            'app_name': app.config.get('APP_NAME', 'Cosmic Surgical')
+        }
+
     # Root route
     @app.route('/')
     def index():

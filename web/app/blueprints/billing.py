@@ -8,8 +8,10 @@ from app.models.product import Product
 from app.models.customer import Customer
 from app.models.company import Company
 from app.models.invoice import Invoice, InvoiceItem
+from app.models.activity_log import ActivityLog
 from app.services.gst_calculator import GSTCalculator
 from app.services.pdf_generator import pdf_generator
+from app.services.invoice_email_service import send_invoice_created_email, send_invoice_cancelled_email
 
 billing_bp = Blueprint('billing', __name__, url_prefix='/billing')
 
@@ -217,8 +219,25 @@ def create_invoice():
 
         db.session.commit()
 
-        # Queue email notification if configured
-        _queue_invoice_email(invoice, company)
+        # Log the invoice creation
+        ActivityLog.log(
+            action='CREATE',
+            entity_type='Invoice',
+            entity_id=invoice.id,
+            entity_name=invoice.invoice_number,
+            description=f'Invoice created: {invoice.invoice_number} for {customer_name} - Rs. {cart_total["grand_total"]:,.2f}',
+            new_values={'customer': customer_name, 'total': float(cart_total['grand_total']), 'items': len(items)},
+            ip_address=request.remote_addr,
+            user_agent=str(request.user_agent)
+        )
+
+        # Send email notification with PDF attachment
+        try:
+            items = list(invoice.items)
+            pdf_bytes = pdf_generator.generate_invoice_pdf(invoice, company, items)
+            send_invoice_created_email(invoice, company, pdf_bytes)
+        except Exception as e:
+            print(f"[EMAIL] Error sending invoice email: {e}")
 
         # Check if e-Way bill is required
         eway_required = cart_total['grand_total'] >= EWAY_BILL_THRESHOLD
@@ -427,6 +446,27 @@ def cancel_invoice(id):
 
     invoice.cancel()
     db.session.commit()
+
+    # Log the invoice cancellation
+    ActivityLog.log(
+        action='CANCEL',
+        entity_type='Invoice',
+        entity_id=invoice.id,
+        entity_name=invoice.invoice_number,
+        description=f'Invoice cancelled: {invoice.invoice_number} - Rs. {invoice.grand_total:,.2f}',
+        ip_address=request.remote_addr,
+        user_agent=str(request.user_agent)
+    )
+
+    # Send cancellation email notification with PDF attachment
+    try:
+        company = Company.get()
+        items = list(invoice.items)
+        pdf_bytes = pdf_generator.generate_invoice_pdf(invoice, company, items)
+        send_invoice_cancelled_email(invoice, company, pdf_bytes)
+    except Exception as e:
+        print(f"[EMAIL] Error sending cancellation email: {e}")
+
     flash(f'Invoice {invoice.invoice_number} has been cancelled', 'success')
     return redirect(url_for('billing.view_invoice', id=id))
 

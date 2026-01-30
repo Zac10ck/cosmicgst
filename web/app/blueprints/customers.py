@@ -3,6 +3,7 @@ from flask import Blueprint, render_template, redirect, url_for, flash, request,
 from flask_login import login_required
 from app.extensions import db
 from app.models.customer import Customer
+from app.models.activity_log import ActivityLog
 from app.forms.customer_forms import CustomerForm
 
 customers_bp = Blueprint('customers', __name__, url_prefix='/customers')
@@ -59,6 +60,19 @@ def add():
             is_active=form.is_active.data
         )
         customer.save()
+
+        # Log customer creation
+        ActivityLog.log(
+            action='CREATE',
+            entity_type='Customer',
+            entity_id=customer.id,
+            entity_name=customer.name,
+            description=f'Customer created: {customer.name}',
+            new_values={'name': customer.name, 'phone': customer.phone, 'gstin': customer.gstin},
+            ip_address=request.remote_addr,
+            user_agent=str(request.user_agent)
+        )
+
         flash(f'Customer "{customer.name}" added successfully!', 'success')
         return redirect(url_for('customers.index'))
 
@@ -87,6 +101,18 @@ def edit(id):
         customer.dl_number = form.dl_number.data or ''
         customer.is_active = form.is_active.data
         customer.save()
+
+        # Log customer update
+        ActivityLog.log(
+            action='UPDATE',
+            entity_type='Customer',
+            entity_id=customer.id,
+            entity_name=customer.name,
+            description=f'Customer updated: {customer.name}',
+            ip_address=request.remote_addr,
+            user_agent=str(request.user_agent)
+        )
+
         flash(f'Customer "{customer.name}" updated successfully!', 'success')
         return redirect(url_for('customers.index'))
 
@@ -101,6 +127,18 @@ def delete(id):
     if customer:
         customer.is_active = False
         customer.save()
+
+        # Log customer deactivation
+        ActivityLog.log(
+            action='DELETE',
+            entity_type='Customer',
+            entity_id=customer.id,
+            entity_name=customer.name,
+            description=f'Customer deactivated: {customer.name}',
+            ip_address=request.remote_addr,
+            user_agent=str(request.user_agent)
+        )
+
         flash(f'Customer "{customer.name}" has been deactivated', 'success')
     return redirect(url_for('customers.index'))
 

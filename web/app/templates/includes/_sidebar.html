@@ -15,12 +15,14 @@
                     <span class="material-icons-outlined">add_shopping_cart</span>New Bill
                 </a>
             </li>
+            {% if current_user.is_admin() %}
             <li class="nav-item">
                 <a class="nav-link {{ 'active' if request.endpoint and 'quotation' in request.endpoint }}"
                    href="{{ url_for('quotations.index') }}">
                     <span class="material-icons-outlined">request_quote</span>Quotations
                 </a>
             </li>
+            {% endif %}
             <li class="nav-item">
                 <a class="nav-link {{ 'active' if request.endpoint and request.endpoint.startswith('billing.') and request.endpoint != 'billing.new_bill' and request.endpoint != 'billing.eway_bill_dashboard' }}"
                    href="{{ url_for('billing.invoice_list') }}">
@@ -33,12 +35,14 @@
                     <span class="material-icons-outlined">local_shipping</span>E-Way Bills
                 </a>
             </li>
+            {% if current_user.is_admin() %}
             <li class="nav-item">
                 <a class="nav-link {{ 'active' if request.endpoint and 'credit_note' in request.endpoint }}"
                    href="{{ url_for('credit_notes.index') }}">
                     <span class="material-icons-outlined">assignment_return</span>Credit Notes
                 </a>
             </li>
+            {% endif %}
 
             <!-- Management Section -->
             <li class="nav-item">
@@ -57,7 +61,8 @@
                 </a>
             </li>
 
-            <!-- Reports Section -->
+            <!-- Reports Section (Admin Only) -->
+            {% if current_user.is_admin() %}
             <li class="nav-item">
                 <small class="nav-link text-muted">Reports</small>
             </li>
@@ -67,6 +72,7 @@
                     <span class="material-icons-outlined">analytics</span>Reports
                 </a>
             </li>
+            {% endif %}
 
             <!-- Admin Section -->
             {% if current_user.is_admin() %}

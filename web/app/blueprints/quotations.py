@@ -1,9 +1,10 @@
-"""Quotations blueprint - Create, manage, and convert quotations"""
+"""Quotations blueprint - Create, manage, and convert quotations (Admin only)"""
 from datetime import date, timedelta
 from io import BytesIO
 from flask import Blueprint, render_template, redirect, url_for, flash, request, jsonify, send_file
 from flask_login import login_required, current_user
 from app.extensions import db
+from app.decorators import admin_required
 from app.models.product import Product
 from app.models.customer import Customer
 from app.models.company import Company
@@ -17,6 +18,7 @@ quotations_bp = Blueprint('quotations', __name__, url_prefix='/quotations')
 
 @quotations_bp.route('/')
 @login_required
+@admin_required
 def index():
     """List all quotations"""
     status = request.args.get('status', '')
@@ -54,6 +56,7 @@ def index():
 
 @quotations_bp.route('/new')
 @login_required
+@admin_required
 def new_quotation():
     """New quotation page"""
     company = Company.get()
@@ -73,6 +76,7 @@ def new_quotation():
 
 @quotations_bp.route('/create', methods=['POST'])
 @login_required
+@admin_required
 def create_quotation():
     """Create new quotation"""
     try:
@@ -166,6 +170,7 @@ def create_quotation():
 
 @quotations_bp.route('/<int:id>')
 @login_required
+@admin_required
 def view_quotation(id):
     """View quotation details"""
     quotation = Quotation.get_by_id(id)
@@ -191,6 +196,7 @@ def view_quotation(id):
 
 @quotations_bp.route('/<int:id>/update-status', methods=['POST'])
 @login_required
+@admin_required
 def update_status(id):
     """Update quotation status"""
     quotation = Quotation.get_by_id(id)
@@ -208,6 +214,7 @@ def update_status(id):
 
 @quotations_bp.route('/<int:id>/convert', methods=['POST'])
 @login_required
+@admin_required
 def convert_to_invoice(id):
     """Convert quotation to invoice"""
     quotation = Quotation.get_by_id(id)
@@ -288,6 +295,7 @@ def convert_to_invoice(id):
 
 @quotations_bp.route('/<int:id>/delete', methods=['POST'])
 @login_required
+@admin_required
 def delete_quotation(id):
     """Delete quotation (only if DRAFT)"""
     quotation = Quotation.get_by_id(id)
@@ -309,6 +317,7 @@ def delete_quotation(id):
 # API endpoints
 @quotations_bp.route('/api/calculate', methods=['POST'])
 @login_required
+@admin_required
 def api_calculate():
     """Calculate quotation totals"""
     try:
@@ -330,6 +339,7 @@ def api_calculate():
 
 @quotations_bp.route('/<int:id>/pdf')
 @login_required
+@admin_required
 def download_pdf(id):
     """Download quotation as PDF"""
     quotation = Quotation.get_by_id(id)

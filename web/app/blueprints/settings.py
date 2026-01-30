@@ -1,5 +1,5 @@
 """Settings blueprint - Company settings, email config, categories, backup/restore"""
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 from io import BytesIO
 import json
 from flask import Blueprint, render_template, redirect, url_for, flash, request, send_file, jsonify
@@ -12,6 +12,8 @@ from app.models.category import Category
 from app.models.product import Product
 from app.models.customer import Customer
 from app.models.invoice import Invoice, InvoiceItem
+from app.models.activity_log import ActivityLog
+from app.models.user import User
 from functools import wraps
 
 settings_bp = Blueprint('settings', __name__, url_prefix='/settings')
@@ -770,3 +772,50 @@ def restore_backup():
         flash(f'Error restoring backup: {str(e)}', 'error')
 
     return redirect(url_for('settings.backup_page'))
+
+
+@settings_bp.route('/audit-logs')
+@login_required
+@admin_required
+def audit_logs():
+    """View audit logs"""
+    # Get filter parameters
+    user_id = request.args.get('user_id', type=int)
+    action = request.args.get('action', '')
+    entity_type = request.args.get('entity_type', '')
+    days = request.args.get('days', 7, type=int)
+
+    # Calculate date range
+    end_date = datetime.utcnow()
+    start_date = end_date - timedelta(days=days)
+
+    # Build query
+    query = ActivityLog.query.filter(ActivityLog.created_at >= start_date)
+
+    if user_id:
+        query = query.filter(ActivityLog.user_id == user_id)
+    if action:
+        query = query.filter(ActivityLog.action == action)
+    if entity_type:
+        query = query.filter(ActivityLog.entity_type == entity_type)
+
+    # Get logs with pagination
+    page = request.args.get('page', 1, type=int)
+    logs = query.order_by(ActivityLog.created_at.desc()).paginate(page=page, per_page=50)
+
+    # Get filter options
+    users = User.query.filter_by(is_active=True).order_by(User.username).all()
+    actions = ActivityLog.ACTIONS
+    entity_types = ['User', 'Invoice', 'Product', 'Customer', 'Quotation', 'CreditNote']
+
+    return render_template(
+        'settings/audit_logs.html',
+        logs=logs,
+        users=users,
+        actions=actions,
+        entity_types=entity_types,
+        selected_user=user_id,
+        selected_action=action,
+        selected_entity=entity_type,
+        selected_days=days
+    )

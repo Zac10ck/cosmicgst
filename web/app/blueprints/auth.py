@@ -4,6 +4,7 @@ from flask import Blueprint, render_template, redirect, url_for, flash, request
 from flask_login import login_user, logout_user, login_required, current_user
 from app.extensions import db
 from app.models.user import User
+from app.models.activity_log import ActivityLog
 from app.forms.auth_forms import LoginForm, UserForm
 
 auth_bp = Blueprint('auth', __name__)
@@ -27,6 +28,14 @@ def login():
             login_user(user, remember=form.remember_me.data)
             user.update_last_login()
 
+            # Log the login activity with IP address
+            ActivityLog.log_login(
+                user_id=user.id,
+                username=user.username,
+                ip_address=request.remote_addr,
+                user_agent=str(request.user_agent)
+            )
+
             flash(f'Welcome back, {user.username}!', 'success')
 
             next_page = request.args.get('next')
@@ -43,6 +52,16 @@ def login():
 @login_required
 def logout():
     """User logout"""
+    # Log the logout activity before logging out
+    ActivityLog.log(
+        action='LOGOUT',
+        entity_type='User',
+        entity_id=current_user.id,
+        entity_name=current_user.username,
+        description=f'User logged out: {current_user.username}',
+        user_id=current_user.id,
+        ip_address=request.remote_addr
+    )
     logout_user()
     flash('You have been logged out.', 'info')
     return redirect(url_for('auth.login'))

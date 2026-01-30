@@ -10,7 +10,7 @@ class Config:
 
     # Application settings
     APP_NAME = "Cosmic Surgical"
-    APP_VERSION = "2.0.0"
+    APP_VERSION = "2.1.0"
 
     # GST settings
     GST_RATES = [0, 5, 12, 18, 28]

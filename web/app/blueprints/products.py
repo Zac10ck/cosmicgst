@@ -1,9 +1,10 @@
 """Products blueprint - CRUD operations"""
 from flask import Blueprint, render_template, redirect, url_for, flash, request, jsonify
-from flask_login import login_required
+from flask_login import login_required, current_user
 from app.extensions import db
 from app.models.product import Product, StockLog
 from app.models.category import Category
+from app.models.activity_log import ActivityLog
 from app.forms.product_forms import ProductForm, CategoryForm
 
 products_bp = Blueprint('products', __name__, url_prefix='/products')
@@ -58,6 +59,8 @@ def add():
     ]
 
     if form.validate_on_submit():
+        # Only admin can set initial stock quantity
+        initial_stock = form.stock_qty.data or 0 if current_user.is_admin() else 0
         product = Product(
             name=form.name.data,
             barcode=form.barcode.data or '',
@@ -66,7 +69,7 @@ def add():
             price=form.price.data,
             purchase_price=form.purchase_price.data or 0,
             gst_rate=float(form.gst_rate.data),
-            stock_qty=form.stock_qty.data or 0,
+            stock_qty=initial_stock,
             low_stock_alert=form.low_stock_alert.data or 10,
             category_id=form.category_id.data if form.category_id.data else None,
             batch_number=form.batch_number.data or '',
@@ -74,6 +77,19 @@ def add():
             is_active=form.is_active.data
         )
         product.save()
+
+        # Log product creation
+        ActivityLog.log(
+            action='CREATE',
+            entity_type='Product',
+            entity_id=product.id,
+            entity_name=product.name,
+            description=f'Product created: {product.name}',
+            new_values={'name': product.name, 'price': float(product.price), 'stock': float(product.stock_qty)},
+            ip_address=request.remote_addr,
+            user_agent=str(request.user_agent)
+        )
+
         flash(f'Product "{product.name}" added successfully!', 'success')
         return redirect(url_for('products.index'))
 
@@ -103,13 +119,27 @@ def edit(id):
         product.price = form.price.data
         product.purchase_price = form.purchase_price.data or 0
         product.gst_rate = float(form.gst_rate.data)
-        product.stock_qty = form.stock_qty.data or 0
+        # Only admin can change stock quantity
+        if current_user.is_admin():
+            product.stock_qty = form.stock_qty.data or 0
         product.low_stock_alert = form.low_stock_alert.data or 10
         product.category_id = form.category_id.data if form.category_id.data else None
         product.batch_number = form.batch_number.data or ''
         product.expiry_date = form.expiry_date.data
         product.is_active = form.is_active.data
         product.save()
+
+        # Log product update
+        ActivityLog.log(
+            action='UPDATE',
+            entity_type='Product',
+            entity_id=product.id,
+            entity_name=product.name,
+            description=f'Product updated: {product.name}',
+            ip_address=request.remote_addr,
+            user_agent=str(request.user_agent)
+        )
+
         flash(f'Product "{product.name}" updated successfully!', 'success')
         return redirect(url_for('products.index'))
 
@@ -124,6 +154,18 @@ def delete(id):
     if product:
         product.is_active = False
         product.save()
+
+        # Log product deactivation
+        ActivityLog.log(
+            action='DELETE',
+            entity_type='Product',
+            entity_id=product.id,
+            entity_name=product.name,
+            description=f'Product deactivated: {product.name}',
+            ip_address=request.remote_addr,
+            user_agent=str(request.user_agent)
+        )
+
         flash(f'Product "{product.name}" has been deactivated', 'success')
     return redirect(url_for('products.index'))
 

@@ -86,9 +86,15 @@
                 </a>
             </li>
             <li class="nav-item">
-                <a class="nav-link {{ 'active' if request.endpoint and request.endpoint.startswith('settings') }}"
+                <a class="nav-link {{ 'active' if request.endpoint == 'settings.index' }}"
                    href="{{ url_for('settings.index') }}">
                     <span class="material-icons-outlined">settings</span>Settings
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link {{ 'active' if request.endpoint == 'settings.audit_logs' }}"
+                   href="{{ url_for('settings.audit_logs') }}">
+                    <span class="material-icons-outlined">history</span>Audit Logs
                 </a>
             </li>
             {% endif %}

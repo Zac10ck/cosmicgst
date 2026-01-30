@@ -304,8 +304,13 @@ class BillingCart {
 
         this.calculateTotals();
         this.hideSearchResults();
-        document.getElementById('product-search').value = '';
-        document.getElementById('product-search').focus();
+
+        // Clear search input if it exists (may not exist if using modal)
+        const searchInput = document.getElementById('product-search');
+        if (searchInput) {
+            searchInput.value = '';
+            searchInput.focus();
+        }
     }
 
     updateQuantity(index, qty) {
@@ -415,6 +420,16 @@ class BillingCart {
         document.getElementById('customer-search').value = '';
         document.getElementById('selected-customer-info').innerHTML = '';
         this.calculateTotals();
+    }
+
+    // Alias for selectCustomer - used by modal-based customer selection
+    setCustomer(customer) {
+        if (customer) {
+            this.customer = customer;
+            this.calculateTotals();
+        } else {
+            this.clearCustomer();
+        }
     }
 
     async calculateTotals() {

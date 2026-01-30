@@ -94,6 +94,19 @@
                         </div>
                     </div>
 
+                    <div class="row">
+                        <div class="col-md-4 mb-3">
+                            <label for="batch_number" class="form-label">Batch Number</label>
+                            {{ form.batch_number(class="form-control") }}
+                            <small class="text-muted">Batch/Lot number for traceability</small>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label for="expiry_date" class="form-label">Expiry Date</label>
+                            {{ form.expiry_date(class="form-control", type="date") }}
+                            <small class="text-muted">Product expiration date</small>
+                        </div>
+                    </div>
+
                     <hr>
 
                     <div class="d-flex gap-2">
@@ -116,6 +129,8 @@
                     <li><strong>HSN Code</strong>: Harmonized System Nomenclature code for GST</li>
                     <li><strong>GST Rate</strong>: Applicable GST percentage for this product</li>
                     <li><strong>Low Stock Alert</strong>: You'll see a warning when stock falls below this quantity</li>
+                    <li><strong>Batch Number</strong>: Track products by batch for pharma compliance</li>
+                    <li><strong>Expiry Date</strong>: Track product expiration for pharma compliance</li>
                 </ul>
             </div>
         </div>

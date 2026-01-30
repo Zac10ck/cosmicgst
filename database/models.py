@@ -62,6 +62,9 @@ class Product:
     created_at: Optional[datetime] = None
     category_id: Optional[int] = None
     purchase_price: float = 0.0
+    # Batch and Expiry tracking (for pharmaceuticals)
+    batch_number: str = ""
+    expiry_date: Optional[date] = None
 
     @classmethod
     def get_all(cls, active_only: bool = True) -> List['Product']:
@@ -123,20 +126,22 @@ class Product:
     def save(self):
         """Save or update product"""
         conn = get_connection()
+        expiry_str = self.expiry_date.isoformat() if self.expiry_date else None
         if self.id:
             conn.execute("""
                 UPDATE products SET name=?, barcode=?, hsn_code=?, unit=?, price=?,
-                gst_rate=?, stock_qty=?, low_stock_alert=?, is_active=?, category_id=?, purchase_price=? WHERE id=?
+                gst_rate=?, stock_qty=?, low_stock_alert=?, is_active=?, category_id=?, purchase_price=?,
+                batch_number=?, expiry_date=? WHERE id=?
             """, (self.name, self.barcode, self.hsn_code, self.unit, self.price,
                   self.gst_rate, self.stock_qty, self.low_stock_alert, self.is_active,
-                  self.category_id, self.purchase_price, self.id))
+                  self.category_id, self.purchase_price, self.batch_number, expiry_str, self.id))
         else:
             cursor = conn.execute("""
-                INSERT INTO products (name, barcode, hsn_code, unit, price, gst_rate, stock_qty, low_stock_alert, is_active, category_id, purchase_price)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO products (name, barcode, hsn_code, unit, price, gst_rate, stock_qty, low_stock_alert, is_active, category_id, purchase_price, batch_number, expiry_date)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (self.name, self.barcode, self.hsn_code, self.unit, self.price,
                   self.gst_rate, self.stock_qty, self.low_stock_alert, self.is_active,
-                  self.category_id, self.purchase_price))
+                  self.category_id, self.purchase_price, self.batch_number, expiry_str))
             self.id = cursor.lastrowid
         conn.commit()
         conn.close()
@@ -166,6 +171,8 @@ class Customer:
     credit_balance: float = 0.0
     credit_limit: float = 0.0
     pin_code: str = ""
+    # Drug License Number (for pharmaceutical customers)
+    dl_number: str = ""
 
     @classmethod
     def get_all(cls, active_only: bool = True) -> List['Customer']:
@@ -208,15 +215,15 @@ class Customer:
         if self.id:
             conn.execute("""
                 UPDATE customers SET name=?, phone=?, address=?, gstin=?, state_code=?, is_active=?,
-                credit_balance=?, credit_limit=?, pin_code=? WHERE id=?
+                credit_balance=?, credit_limit=?, pin_code=?, dl_number=? WHERE id=?
             """, (self.name, self.phone, self.address, self.gstin, self.state_code, self.is_active,
-                  self.credit_balance, self.credit_limit, self.pin_code, self.id))
+                  self.credit_balance, self.credit_limit, self.pin_code, self.dl_number, self.id))
         else:
             cursor = conn.execute("""
-                INSERT INTO customers (name, phone, address, gstin, state_code, is_active, credit_balance, credit_limit, pin_code)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO customers (name, phone, address, gstin, state_code, is_active, credit_balance, credit_limit, pin_code, dl_number)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (self.name, self.phone, self.address, self.gstin, self.state_code, self.is_active,
-                  self.credit_balance, self.credit_limit, self.pin_code))
+                  self.credit_balance, self.credit_limit, self.pin_code, self.dl_number))
             self.id = cursor.lastrowid
         conn.commit()
         conn.close()
@@ -246,6 +253,8 @@ class InvoiceItem:
     sgst: float = 0.0
     igst: float = 0.0
     total: float = 0.0
+    # Batch tracking for invoice items
+    batch_number: str = ""
 
 
 @dataclass
@@ -400,11 +409,11 @@ class Invoice:
             item.invoice_id = self.id
             conn.execute("""
                 INSERT INTO invoice_items (invoice_id, product_id, product_name, hsn_code,
-                qty, unit, rate, gst_rate, taxable_value, cgst, sgst, igst, total)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                qty, unit, rate, gst_rate, taxable_value, cgst, sgst, igst, total, batch_number)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (item.invoice_id, item.product_id, item.product_name, item.hsn_code,
                   item.qty, item.unit, item.rate, item.gst_rate, item.taxable_value,
-                  item.cgst, item.sgst, item.igst, item.total))
+                  item.cgst, item.sgst, item.igst, item.total, item.batch_number))
 
         conn.commit()
         conn.close()

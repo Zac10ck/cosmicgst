@@ -175,6 +175,13 @@ def create_invoice():
 
         # Create invoice items and update stock
         for item_data in cart_total['items']:
+            # Get batch number from product
+            batch_number = ''
+            if item_data['product_id']:
+                product = Product.get_by_id(item_data['product_id'])
+                if product:
+                    batch_number = product.batch_number or ''
+
             item = InvoiceItem(
                 invoice_id=invoice.id,
                 product_id=item_data['product_id'],
@@ -188,13 +195,15 @@ def create_invoice():
                 cgst=item_data['cgst'],
                 sgst=item_data['sgst'],
                 igst=item_data['igst'],
-                total=item_data['total']
+                total=item_data['total'],
+                batch_number=batch_number
             )
             db.session.add(item)
 
             # Update stock
             if item_data['product_id']:
-                product = Product.get_by_id(item_data['product_id'])
+                if not product:
+                    product = Product.get_by_id(item_data['product_id'])
                 if product:
                     product.update_stock(
                         -item_data['qty'],

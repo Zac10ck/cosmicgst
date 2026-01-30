@@ -222,6 +222,29 @@ def init_db():
     except sqlite3.OperationalError:
         pass
 
+    # Add batch_number and expiry_date to products (for pharmaceuticals)
+    try:
+        cursor.execute("ALTER TABLE products ADD COLUMN batch_number TEXT")
+    except sqlite3.OperationalError:
+        pass
+
+    try:
+        cursor.execute("ALTER TABLE products ADD COLUMN expiry_date DATE")
+    except sqlite3.OperationalError:
+        pass
+
+    # Add batch_number to invoice_items (for invoice tracking)
+    try:
+        cursor.execute("ALTER TABLE invoice_items ADD COLUMN batch_number TEXT")
+    except sqlite3.OperationalError:
+        pass
+
+    # Add Drug License Number (DL) to customers (for pharmaceutical customers)
+    try:
+        cursor.execute("ALTER TABLE customers ADD COLUMN dl_number TEXT")
+    except sqlite3.OperationalError:
+        pass
+
     # Invoice Payments table (for split payments)
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS invoice_payments (

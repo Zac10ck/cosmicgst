@@ -663,17 +663,19 @@ class PDFGenerator:
         """Build professional items table with modern styling"""
         elements = []
 
-        # Table headers
-        headers = ['#', 'Description', 'HSN', 'Qty', 'Rate', 'Taxable', 'GST%', 'Tax', 'Total']
+        # Table headers (with Batch# column)
+        headers = ['#', 'Description', 'Batch#', 'HSN', 'Qty', 'Rate', 'Taxable', 'GST%', 'Tax', 'Total']
         data = [headers]
 
         # Table rows
         for i, item in enumerate(items, 1):
             tax = (item.cgst or 0) + (item.sgst or 0) + (item.igst or 0)
-            product_name = (item.product_name or '')[:35]  # Truncate long names
+            product_name = (item.product_name or '')[:30]  # Truncate long names
+            batch_number = getattr(item, 'batch_number', '') or '-'
             data.append([
                 str(i),
                 product_name,
+                batch_number[:12] if len(batch_number) > 12 else batch_number,  # Truncate batch
                 item.hsn_code or '-',
                 f"{item.qty:.2f}",
                 f"{item.rate:,.2f}",
@@ -683,8 +685,8 @@ class PDFGenerator:
                 f"{item.total:,.2f}"
             ])
 
-        # Column widths
-        col_widths = [8*mm, 48*mm, 16*mm, 16*mm, 22*mm, 24*mm, 14*mm, 18*mm, 22*mm]
+        # Column widths (adjusted for Batch# column)
+        col_widths = [8*mm, 40*mm, 18*mm, 14*mm, 14*mm, 20*mm, 22*mm, 12*mm, 16*mm, 22*mm]
         table = Table(data, colWidths=col_widths)
 
         # Table styling
@@ -702,8 +704,9 @@ class PDFGenerator:
             ('FONTSIZE', (0, 1), (-1, -1), 8),
             ('ALIGN', (0, 1), (0, -1), 'CENTER'),  # # column
             ('ALIGN', (1, 1), (1, -1), 'LEFT'),    # Description
-            ('ALIGN', (2, 1), (2, -1), 'CENTER'),  # HSN
-            ('ALIGN', (3, 1), (-1, -1), 'RIGHT'),  # Numbers right-aligned
+            ('ALIGN', (2, 1), (2, -1), 'CENTER'),  # Batch#
+            ('ALIGN', (3, 1), (3, -1), 'CENTER'),  # HSN
+            ('ALIGN', (4, 1), (-1, -1), 'RIGHT'),  # Numbers right-aligned
             ('VALIGN', (0, 1), (-1, -1), 'MIDDLE'),
 
             # Borders

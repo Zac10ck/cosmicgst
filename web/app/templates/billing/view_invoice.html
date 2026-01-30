@@ -109,13 +109,14 @@
                     <tr>
                         <th class="text-center" style="width: 40px;">#</th>
                         <th>Description</th>
-                        <th class="text-center" style="width: 80px;">HSN</th>
-                        <th class="text-center" style="width: 80px;">Qty</th>
-                        <th class="text-end" style="width: 90px;">Rate</th>
-                        <th class="text-end" style="width: 100px;">Taxable</th>
-                        <th class="text-center" style="width: 60px;">GST%</th>
-                        <th class="text-end" style="width: 80px;">Tax</th>
-                        <th class="text-end" style="width: 100px;">Total</th>
+                        <th class="text-center" style="width: 70px;">Batch#</th>
+                        <th class="text-center" style="width: 70px;">HSN</th>
+                        <th class="text-center" style="width: 70px;">Qty</th>
+                        <th class="text-end" style="width: 80px;">Rate</th>
+                        <th class="text-end" style="width: 90px;">Taxable</th>
+                        <th class="text-center" style="width: 50px;">GST%</th>
+                        <th class="text-end" style="width: 70px;">Tax</th>
+                        <th class="text-end" style="width: 90px;">Total</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -123,6 +124,7 @@
                     <tr class="{{ 'row-alt' if loop.index is odd else '' }}">
                         <td class="text-center">{{ loop.index }}</td>
                         <td>{{ item.product_name }}</td>
+                        <td class="text-center">{{ item.batch_number or '-' }}</td>
                         <td class="text-center">{{ item.hsn_code or '-' }}</td>
                         <td class="text-center">{{ "%.2f"|format(item.qty) }} {{ item.unit }}</td>
                         <td class="text-end">{{ "%.2f"|format(item.rate) }}</td>

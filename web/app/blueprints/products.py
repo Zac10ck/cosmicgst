@@ -69,6 +69,8 @@ def add():
             stock_qty=form.stock_qty.data or 0,
             low_stock_alert=form.low_stock_alert.data or 10,
             category_id=form.category_id.data if form.category_id.data else None,
+            batch_number=form.batch_number.data or '',
+            expiry_date=form.expiry_date.data,
             is_active=form.is_active.data
         )
         product.save()
@@ -104,6 +106,8 @@ def edit(id):
         product.stock_qty = form.stock_qty.data or 0
         product.low_stock_alert = form.low_stock_alert.data or 10
         product.category_id = form.category_id.data if form.category_id.data else None
+        product.batch_number = form.batch_number.data or ''
+        product.expiry_date = form.expiry_date.data
         product.is_active = form.is_active.data
         product.save()
         flash(f'Product "{product.name}" updated successfully!', 'success')

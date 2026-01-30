@@ -1,6 +1,6 @@
 """Product and Category forms"""
 from flask_wtf import FlaskForm
-from wtforms import StringField, FloatField, SelectField, BooleanField, TextAreaField, SubmitField
+from wtforms import StringField, FloatField, SelectField, BooleanField, TextAreaField, SubmitField, DateField
 from wtforms.validators import DataRequired, Optional, NumberRange
 
 
@@ -39,6 +39,9 @@ class ProductForm(FlaskForm):
     stock_qty = FloatField('Stock Quantity', validators=[Optional(), NumberRange(min=0)], default=0)
     low_stock_alert = FloatField('Low Stock Alert', validators=[Optional(), NumberRange(min=0)], default=10)
     category_id = SelectField('Category', coerce=int, validators=[Optional()])
+    # Batch and Expiry tracking (for pharmaceuticals)
+    batch_number = StringField('Batch Number', validators=[Optional()])
+    expiry_date = DateField('Expiry Date', validators=[Optional()], format='%Y-%m-%d')
     is_active = BooleanField('Active', default=True)
     submit = SubmitField('Save Product')
 

@@ -55,6 +55,7 @@ def add():
             state_code=form.state_code.data,
             pin_code=form.pin_code.data or '',
             credit_limit=form.credit_limit.data or 0,
+            dl_number=form.dl_number.data or '',
             is_active=form.is_active.data
         )
         customer.save()
@@ -83,6 +84,7 @@ def edit(id):
         customer.state_code = form.state_code.data
         customer.pin_code = form.pin_code.data or ''
         customer.credit_limit = form.credit_limit.data or 0
+        customer.dl_number = form.dl_number.data or ''
         customer.is_active = form.is_active.data
         customer.save()
         flash(f'Customer "{customer.name}" updated successfully!', 'success')

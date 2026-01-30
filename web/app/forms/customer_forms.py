@@ -59,5 +59,7 @@ class CustomerForm(FlaskForm):
     state_code = SelectField('State', choices=STATE_CODES, default='32')
     pin_code = StringField('PIN Code', validators=[Optional(), Length(max=10)])
     credit_limit = FloatField('Credit Limit', validators=[Optional(), NumberRange(min=0)], default=0)
+    # Drug License Number (for pharmaceutical customers)
+    dl_number = StringField('Drug License Number (DL No.)', validators=[Optional(), Length(max=50)])
     is_active = BooleanField('Active', default=True)
     submit = SubmitField('Save Customer')

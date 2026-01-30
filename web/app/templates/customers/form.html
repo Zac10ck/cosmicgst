@@ -64,6 +64,11 @@
                             </div>
                             <small class="text-muted">Maximum credit allowed (0 = no credit)</small>
                         </div>
+                        <div class="col-md-4 mb-3">
+                            <label for="dl_number" class="form-label">Drug License No. (DL)</label>
+                            {{ form.dl_number(class="form-control", placeholder="DL-XX-XXXXX") }}
+                            <small class="text-muted">Drug License Number for pharma customers</small>
+                        </div>
                         <div class="col-md-4 mb-3 d-flex align-items-end">
                             <div class="form-check">
                                 {{ form.is_active(class="form-check-input") }}
@@ -93,6 +98,7 @@
                     <li><strong>GSTIN</strong>: Required for B2B invoices and GST reports</li>
                     <li><strong>State Code</strong>: Determines CGST/SGST vs IGST calculation</li>
                     <li><strong>Credit Limit</strong>: Set to 0 for cash-only customers</li>
+                    <li><strong>DL Number</strong>: Drug License Number for pharmaceutical compliance</li>
                 </ul>
             </div>
         </div>

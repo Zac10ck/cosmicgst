@@ -17,6 +17,9 @@ class Customer(db.Model):
     credit_balance = db.Column(db.Float, default=0.0)
     credit_limit = db.Column(db.Float, default=0.0)
 
+    # Drug License Number (for pharmaceutical customers)
+    dl_number = db.Column(db.String(50), default='')
+
     # Relationships
     invoices = db.relationship('Invoice', backref='customer', lazy='dynamic')
     quotations = db.relationship('Quotation', backref='customer', lazy='dynamic')
@@ -67,7 +70,8 @@ class Customer(db.Model):
             'state_code': self.state_code,
             'pin_code': self.pin_code,
             'credit_balance': self.credit_balance,
-            'credit_limit': self.credit_limit
+            'credit_limit': self.credit_limit,
+            'dl_number': self.dl_number or ''
         }
 
     def __repr__(self):

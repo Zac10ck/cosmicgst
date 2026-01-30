@@ -178,6 +178,9 @@ class InvoiceItem(db.Model):
     igst = db.Column(db.Float, default=0.0)
     total = db.Column(db.Float, default=0.0)
 
+    # Batch tracking for invoice items
+    batch_number = db.Column(db.String(50), default='')
+
     def to_dict(self):
         """Convert to dictionary"""
         return {
@@ -193,7 +196,8 @@ class InvoiceItem(db.Model):
             'cgst': self.cgst,
             'sgst': self.sgst,
             'igst': self.igst,
-            'total': self.total
+            'total': self.total,
+            'batch_number': self.batch_number or ''
         }
 
     def __repr__(self):

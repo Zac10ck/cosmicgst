@@ -23,6 +23,10 @@ class Product(db.Model):
     category_id = db.Column(db.Integer, db.ForeignKey('categories.id'), nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
+    # Batch and Expiry tracking (for pharmaceuticals)
+    batch_number = db.Column(db.String(50), default='')
+    expiry_date = db.Column(db.Date, nullable=True)
+
     # Relationships
     stock_logs = db.relationship('StockLog', backref='product', lazy='dynamic')
 
@@ -95,7 +99,9 @@ class Product(db.Model):
             'purchase_price': self.purchase_price,
             'gst_rate': self.gst_rate,
             'stock_qty': self.stock_qty,
-            'category_id': self.category_id
+            'category_id': self.category_id,
+            'batch_number': self.batch_number or '',
+            'expiry_date': self.expiry_date.isoformat() if self.expiry_date else ''
         }
 
     def get_tax_code(self):

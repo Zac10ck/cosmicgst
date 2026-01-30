@@ -402,11 +402,11 @@ class PDFGenerator:
         """Build professional items table"""
         elements = []
 
-        # Column headers
-        headers = ['#', 'Description', 'HSN', 'Qty', 'Rate', 'GST%', 'CGST', 'SGST', 'Amount']
+        # Column headers (with Batch# column)
+        headers = ['#', 'Description', 'Batch#', 'HSN', 'Qty', 'Rate', 'GST%', 'CGST', 'SGST', 'Amount']
 
         # Column widths (total should equal content_width)
-        col_widths = [8*mm, 45*mm, 18*mm, 15*mm, 22*mm, 12*mm, 18*mm, 18*mm, 24*mm]
+        col_widths = [8*mm, 38*mm, 16*mm, 16*mm, 14*mm, 20*mm, 12*mm, 16*mm, 16*mm, 24*mm]
 
         # Build header row
         header_row = [Paragraph(f"<b>{h}</b>", ParagraphStyle(
@@ -422,9 +422,11 @@ class PDFGenerator:
 
         # Build item rows
         for idx, item in enumerate(invoice.items, 1):
+            batch_number = getattr(item, 'batch_number', '') or '-'
             row = [
                 str(idx),
-                item.product_name[:30],  # Truncate long names
+                item.product_name[:25],  # Truncate long names
+                batch_number[:10] if len(batch_number) > 10 else batch_number,  # Truncate batch
                 item.hsn_code or '-',
                 f"{item.qty:.2f}".rstrip('0').rstrip('.'),
                 format_currency(item.rate),
@@ -453,9 +455,10 @@ class PDFGenerator:
             # Alignments
             ('ALIGN', (0, 1), (0, -1), 'CENTER'),   # #
             ('ALIGN', (1, 1), (1, -1), 'LEFT'),     # Description
-            ('ALIGN', (2, 1), (2, -1), 'CENTER'),   # HSN
-            ('ALIGN', (3, 1), (3, -1), 'CENTER'),   # Qty
-            ('ALIGN', (4, 1), (-1, -1), 'RIGHT'),   # Rate onwards
+            ('ALIGN', (2, 1), (2, -1), 'CENTER'),   # Batch#
+            ('ALIGN', (3, 1), (3, -1), 'CENTER'),   # HSN
+            ('ALIGN', (4, 1), (4, -1), 'CENTER'),   # Qty
+            ('ALIGN', (5, 1), (-1, -1), 'RIGHT'),   # Rate onwards
 
             # Borders
             ('BOX', (0, 0), (-1, -1), 1, COLORS['primary']),

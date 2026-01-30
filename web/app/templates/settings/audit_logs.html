@@ -80,6 +80,7 @@
                             <th>Entity</th>
                             <th>Description</th>
                             <th>IP Address</th>
+                            <th>User Agent</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -122,10 +123,15 @@
                             <td>
                                 <code>{{ log.ip_address or '-' }}</code>
                             </td>
+                            <td>
+                                <small class="text-muted" style="max-width: 200px; display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="{{ log.user_agent or '-' }}">
+                                    {{ log.user_agent or '-' }}
+                                </small>
+                            </td>
                         </tr>
                         {% else %}
                         <tr>
-                            <td colspan="6" class="text-center py-4">
+                            <td colspan="7" class="text-center py-4">
                                 <span class="material-icons-outlined text-muted" style="font-size: 48px;">history</span>
                                 <p class="text-muted mt-2">No activity logs found</p>
                             </td>

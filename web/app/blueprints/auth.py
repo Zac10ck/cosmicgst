@@ -60,7 +60,8 @@ def logout():
         entity_name=current_user.username,
         description=f'User logged out: {current_user.username}',
         user_id=current_user.id,
-        ip_address=request.remote_addr
+        ip_address=request.remote_addr,
+        user_agent=str(request.user_agent)
     )
     logout_user()
     flash('You have been logged out.', 'info')

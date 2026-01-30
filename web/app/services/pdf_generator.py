@@ -144,7 +144,7 @@ class PDFGenerator:
         ))
 
         self.styles.add(ParagraphStyle(
-            name='Title',
+            name='InvoiceTitle',
             fontSize=12,
             fontName='Helvetica-Bold',
             textColor=colors.white,
@@ -239,7 +239,7 @@ class PDFGenerator:
         else:
             bg_color = self.PRIMARY
 
-        title_table = Table([[Paragraph(title_text, self.styles['Title'])]], colWidths=[self.content_width])
+        title_table = Table([[Paragraph(title_text, self.styles['InvoiceTitle'])]], colWidths=[self.content_width])
         title_table.setStyle(TableStyle([
             ('BACKGROUND', (0, 0), (-1, -1), bg_color),
             ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
@@ -683,7 +683,7 @@ class PDFGenerator:
         elements.append(Spacer(1, 2*mm))
 
         # Title
-        title_table = Table([[Paragraph("QUOTATION", self.styles['Title'])]], colWidths=[self.content_width])
+        title_table = Table([[Paragraph("QUOTATION", self.styles['InvoiceTitle'])]], colWidths=[self.content_width])
         title_table.setStyle(TableStyle([
             ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#f39c12')),
             ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
@@ -787,7 +787,7 @@ class PDFGenerator:
         elements.append(Spacer(1, 2*mm))
 
         # Title
-        title_table = Table([[Paragraph("CREDIT NOTE", self.styles['Title'])]], colWidths=[self.content_width])
+        title_table = Table([[Paragraph("CREDIT NOTE", self.styles['InvoiceTitle'])]], colWidths=[self.content_width])
         title_table.setStyle(TableStyle([
             ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#c0392b')),
             ('ALIGN', (0, 0), (-1, -1), 'CENTER'),

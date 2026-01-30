@@ -305,7 +305,7 @@ function addProductToCart(product) {
     bootstrap.Modal.getInstance(document.getElementById('productSearchModal')).hide();
     // Add to cart using the existing cart object
     if (typeof cart !== 'undefined') {
-        cart.addItem(product);
+        cart.addProduct(product);
     }
 }
 

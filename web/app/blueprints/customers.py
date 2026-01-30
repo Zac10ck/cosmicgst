@@ -91,6 +91,20 @@ def edit(id):
     form = CustomerForm(obj=customer)
 
     if form.validate_on_submit():
+        # Capture old values BEFORE updating for audit trail
+        old_values = {
+            'name': customer.name,
+            'phone': customer.phone or '',
+            'address': customer.address or '',
+            'gstin': customer.gstin or '',
+            'state_code': customer.state_code,
+            'pin_code': customer.pin_code or '',
+            'credit_limit': float(customer.credit_limit or 0),
+            'dl_number': customer.dl_number or '',
+            'is_active': customer.is_active
+        }
+
+        # Update customer fields
         customer.name = form.name.data
         customer.phone = form.phone.data or ''
         customer.address = form.address.data or ''
@@ -102,13 +116,47 @@ def edit(id):
         customer.is_active = form.is_active.data
         customer.save()
 
-        # Log customer update
+        # Capture new values AFTER updating
+        new_values = {
+            'name': customer.name,
+            'phone': customer.phone or '',
+            'address': customer.address or '',
+            'gstin': customer.gstin or '',
+            'state_code': customer.state_code,
+            'pin_code': customer.pin_code or '',
+            'credit_limit': float(customer.credit_limit or 0),
+            'dl_number': customer.dl_number or '',
+            'is_active': customer.is_active
+        }
+
+        # Build detailed change description
+        changes = []
+        if old_values['name'] != new_values['name']:
+            changes.append(f"Name: {old_values['name']} → {new_values['name']}")
+        if old_values['phone'] != new_values['phone']:
+            changes.append(f"Phone: {old_values['phone'] or 'N/A'} → {new_values['phone'] or 'N/A'}")
+        if old_values['gstin'] != new_values['gstin']:
+            changes.append(f"GSTIN: {old_values['gstin'] or 'N/A'} → {new_values['gstin'] or 'N/A'}")
+        if old_values['credit_limit'] != new_values['credit_limit']:
+            changes.append(f"Credit Limit: ₹{old_values['credit_limit']:.2f} → ₹{new_values['credit_limit']:.2f}")
+        if old_values['state_code'] != new_values['state_code']:
+            changes.append(f"State: {old_values['state_code']} → {new_values['state_code']}")
+        if old_values['is_active'] != new_values['is_active']:
+            changes.append(f"Status: {'Active' if old_values['is_active'] else 'Inactive'} → {'Active' if new_values['is_active'] else 'Inactive'}")
+
+        description = f"Customer updated: {customer.name}"
+        if changes:
+            description += " | Changes: " + ", ".join(changes)
+
+        # Log customer update with full audit trail
         ActivityLog.log(
             action='UPDATE',
             entity_type='Customer',
             entity_id=customer.id,
             entity_name=customer.name,
-            description=f'Customer updated: {customer.name}',
+            description=description,
+            old_values=old_values,
+            new_values=new_values,
             ip_address=request.remote_addr,
             user_agent=str(request.user_agent)
         )

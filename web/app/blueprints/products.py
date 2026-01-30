@@ -112,6 +112,22 @@ def edit(id):
     form.gst_rate.data = str(int(product.gst_rate))
 
     if form.validate_on_submit():
+        # Capture old values BEFORE updating for audit trail
+        old_values = {
+            'name': product.name,
+            'price': float(product.price),
+            'purchase_price': float(product.purchase_price or 0),
+            'stock_qty': float(product.stock_qty),
+            'gst_rate': float(product.gst_rate),
+            'hsn_code': product.hsn_code or '',
+            'batch_number': product.batch_number or '',
+            'barcode': product.barcode or '',
+            'unit': product.unit,
+            'low_stock_alert': float(product.low_stock_alert or 10),
+            'is_active': product.is_active
+        }
+
+        # Update product fields
         product.name = form.name.data
         product.barcode = form.barcode.data or ''
         product.hsn_code = form.hsn_code.data or ''
@@ -119,9 +135,13 @@ def edit(id):
         product.price = form.price.data
         product.purchase_price = form.purchase_price.data or 0
         product.gst_rate = float(form.gst_rate.data)
+
         # Only admin can change stock quantity
+        old_stock = old_values['stock_qty']
         if current_user.is_admin():
             product.stock_qty = form.stock_qty.data or 0
+        new_stock = float(product.stock_qty)
+
         product.low_stock_alert = form.low_stock_alert.data or 10
         product.category_id = form.category_id.data if form.category_id.data else None
         product.batch_number = form.batch_number.data or ''
@@ -129,16 +149,68 @@ def edit(id):
         product.is_active = form.is_active.data
         product.save()
 
-        # Log product update
+        # Capture new values AFTER updating
+        new_values = {
+            'name': product.name,
+            'price': float(product.price),
+            'purchase_price': float(product.purchase_price or 0),
+            'stock_qty': float(product.stock_qty),
+            'gst_rate': float(product.gst_rate),
+            'hsn_code': product.hsn_code or '',
+            'batch_number': product.batch_number or '',
+            'barcode': product.barcode or '',
+            'unit': product.unit,
+            'low_stock_alert': float(product.low_stock_alert or 10),
+            'is_active': product.is_active
+        }
+
+        # Build detailed change description
+        changes = []
+        if old_values['price'] != new_values['price']:
+            changes.append(f"Price: ₹{old_values['price']:.2f} → ₹{new_values['price']:.2f}")
+        if old_values['purchase_price'] != new_values['purchase_price']:
+            changes.append(f"Purchase Price: ₹{old_values['purchase_price']:.2f} → ₹{new_values['purchase_price']:.2f}")
+        if old_values['stock_qty'] != new_values['stock_qty']:
+            changes.append(f"Stock: {old_values['stock_qty']:g} → {new_values['stock_qty']:g}")
+        if old_values['gst_rate'] != new_values['gst_rate']:
+            changes.append(f"GST: {old_values['gst_rate']:g}% → {new_values['gst_rate']:g}%")
+        if old_values['name'] != new_values['name']:
+            changes.append(f"Name: {old_values['name']} → {new_values['name']}")
+        if old_values['hsn_code'] != new_values['hsn_code']:
+            changes.append(f"HSN: {old_values['hsn_code'] or 'N/A'} → {new_values['hsn_code'] or 'N/A'}")
+        if old_values['batch_number'] != new_values['batch_number']:
+            changes.append(f"Batch: {old_values['batch_number'] or 'N/A'} → {new_values['batch_number'] or 'N/A'}")
+        if old_values['is_active'] != new_values['is_active']:
+            changes.append(f"Status: {'Active' if old_values['is_active'] else 'Inactive'} → {'Active' if new_values['is_active'] else 'Inactive'}")
+
+        description = f"Product updated: {product.name}"
+        if changes:
+            description += " | Changes: " + ", ".join(changes)
+
+        # Log product update with full audit trail
         ActivityLog.log(
             action='UPDATE',
             entity_type='Product',
             entity_id=product.id,
             entity_name=product.name,
-            description=f'Product updated: {product.name}',
+            description=description,
+            old_values=old_values,
+            new_values=new_values,
             ip_address=request.remote_addr,
             user_agent=str(request.user_agent)
         )
+
+        # Also log stock change to StockLog if stock was modified manually
+        if old_stock != new_stock and current_user.is_admin():
+            stock_change = new_stock - old_stock
+            log = StockLog(
+                product_id=product.id,
+                change_qty=stock_change,
+                reason=f'Manual adjustment by {current_user.username}',
+                reference_id=None
+            )
+            db.session.add(log)
+            db.session.commit()
 
         flash(f'Product "{product.name}" updated successfully!', 'success')
         return redirect(url_for('products.index'))

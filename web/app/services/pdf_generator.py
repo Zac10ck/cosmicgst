@@ -272,15 +272,29 @@ class PDFGenerator:
         cgst_total = invoice.cgst_total or 0
         sgst_total = invoice.sgst_total or 0
         igst_total = invoice.igst_total or 0
-        gst_rate = items[0].gst_rate if items else 0
-        half_rate = gst_rate / 2
+
+        # Group tax by GST rate for accurate display
+        tax_by_rate = {}
+        for item in items:
+            rate = item.gst_rate or 0
+            if rate not in tax_by_rate:
+                tax_by_rate[rate] = {'cgst': 0, 'sgst': 0, 'igst': 0}
+            tax_by_rate[rate]['cgst'] += item.cgst or 0
+            tax_by_rate[rate]['sgst'] += item.sgst or 0
+            tax_by_rate[rate]['igst'] += item.igst or 0
 
         tax_rows = []
-        if cgst_total > 0:
-            tax_rows.append([f'CGST {half_rate:g}%', f'{cgst_total:,.2f}'])
-            tax_rows.append([f'SGST {half_rate:g}%', f'{sgst_total:,.2f}'])
-        if igst_total > 0:
-            tax_rows.append([f'IGST {gst_rate:g}%', f'{igst_total:,.2f}'])
+        # Show tax breakdown by rate
+        for rate in sorted(tax_by_rate.keys()):
+            if rate == 0:
+                continue  # Skip 0% GST
+            half_rate = rate / 2
+            vals = tax_by_rate[rate]
+            if vals['cgst'] > 0:
+                tax_rows.append([f'CGST {half_rate:g}%', f'{vals["cgst"]:,.2f}'])
+                tax_rows.append([f'SGST {half_rate:g}%', f'{vals["sgst"]:,.2f}'])
+            if vals['igst'] > 0:
+                tax_rows.append([f'IGST {rate:g}%', f'{vals["igst"]:,.2f}'])
 
         if tax_rows:
             tax_table = Table(tax_rows, colWidths=[30*mm, 25*mm])
@@ -509,8 +523,8 @@ class PDFGenerator:
     def _modern_items_table(self, items, invoice, PRIMARY, LIGHT_BG):
         elements = []
 
-        headers = ['#', 'Item Description', 'HSN', 'Qty', 'Rate', 'GST%', 'Amount']
-        col_widths = [8*mm, 70*mm, 18*mm, 15*mm, 25*mm, 15*mm, 30*mm]
+        headers = ['#', 'Item Description', 'Batch', 'HSN', 'Qty', 'Rate', 'GST%', 'Amount']
+        col_widths = [8*mm, 58*mm, 22*mm, 16*mm, 12*mm, 22*mm, 14*mm, 28*mm]
 
         data = [headers]
 
@@ -519,8 +533,9 @@ class PDFGenerator:
             rate = item.rate or 0
             gst_rate = item.gst_rate or 0
             total = item.total or 0
+            batch = getattr(item, 'batch_number', '') or ''
 
-            row = [str(i), item.product_name or '', item.hsn_code or '-',
+            row = [str(i), item.product_name or '', batch, item.hsn_code or '-',
                    f"{qty:g}", f"{rate:,.2f}", f"{gst_rate:g}%", f"{total:,.2f}"]
             data.append(row)
 
@@ -532,9 +547,9 @@ class PDFGenerator:
             ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
             ('FONTSIZE', (0, 0), (-1, -1), 8),
             ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
-            ('ALIGN', (0, 0), (0, -1), 'CENTER'),
-            ('ALIGN', (2, 0), (-1, -1), 'CENTER'),
-            ('ALIGN', (3, 1), (-1, -1), 'RIGHT'),
+            ('ALIGN', (0, 0), (0, -1), 'CENTER'),  # # column
+            ('ALIGN', (3, 0), (3, -1), 'CENTER'),  # HSN column
+            ('ALIGN', (4, 1), (-1, -1), 'RIGHT'),  # Qty, Rate, GST%, Amount - right align
             ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
             ('TOPPADDING', (0, 0), (-1, -1), 2*mm),
             ('BOTTOMPADDING', (0, 0), (-1, -1), 2*mm),

@@ -52,8 +52,26 @@ def company():
     company = Company.get()
 
     if request.method == 'POST':
+        is_new = not company
         if not company:
             company = Company()
+
+        # Capture old values BEFORE updating for audit trail
+        old_values = {}
+        if not is_new:
+            old_values = {
+                'name': company.name or '',
+                'gstin': company.gstin or '',
+                'state_code': company.state_code or '',
+                'phone': company.phone or '',
+                'email': company.email or '',
+                'bank_name': company.bank_name or '',
+                'bank_account': company.bank_account or '',
+                'bank_ifsc': company.bank_ifsc or '',
+                'pan': company.pan or '',
+                'invoice_prefix': company.invoice_prefix or '',
+                'invoice_style': getattr(company, 'invoice_style', 'classic') or 'classic'
+            }
 
         company.name = request.form.get('name', '').strip()
         company.address = request.form.get('address', '').strip()
@@ -70,6 +88,53 @@ def company():
         company.invoice_style = request.form.get('invoice_style', 'classic').strip()
 
         company.save()
+
+        # Capture new values AFTER updating
+        new_values = {
+            'name': company.name or '',
+            'gstin': company.gstin or '',
+            'state_code': company.state_code or '',
+            'phone': company.phone or '',
+            'email': company.email or '',
+            'bank_name': company.bank_name or '',
+            'bank_account': company.bank_account or '',
+            'bank_ifsc': company.bank_ifsc or '',
+            'pan': company.pan or '',
+            'invoice_prefix': company.invoice_prefix or '',
+            'invoice_style': getattr(company, 'invoice_style', 'classic') or 'classic'
+        }
+
+        # Build detailed change description
+        changes = []
+        if not is_new:
+            if old_values.get('name') != new_values['name']:
+                changes.append(f"Name changed")
+            if old_values.get('gstin') != new_values['gstin']:
+                changes.append(f"GSTIN: {old_values.get('gstin') or 'N/A'} → {new_values['gstin'] or 'N/A'}")
+            if old_values.get('bank_account') != new_values['bank_account']:
+                changes.append(f"Bank A/c changed")
+            if old_values.get('invoice_prefix') != new_values['invoice_prefix']:
+                changes.append(f"Invoice Prefix: {old_values.get('invoice_prefix')} → {new_values['invoice_prefix']}")
+            if old_values.get('invoice_style') != new_values['invoice_style']:
+                changes.append(f"Invoice Style: {old_values.get('invoice_style')} → {new_values['invoice_style']}")
+
+        description = f"Company settings {'created' if is_new else 'updated'}: {company.name}"
+        if changes:
+            description += " | Changes: " + ", ".join(changes)
+
+        # Log company settings update
+        ActivityLog.log(
+            action='CREATE' if is_new else 'UPDATE',
+            entity_type='Company',
+            entity_id=company.id,
+            entity_name=company.name,
+            description=description,
+            old_values=old_values if not is_new else None,
+            new_values=new_values,
+            ip_address=request.remote_addr,
+            user_agent=str(request.user_agent)
+        )
+
         flash('Company settings saved successfully', 'success')
         return redirect(url_for('settings.company'))
 

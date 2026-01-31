@@ -183,11 +183,11 @@ async function sendWhatsAppFromModal() {
     const amount = document.getElementById('wa-invoice-amount').value;
     const invoiceId = document.getElementById('wa-invoice-id').value;
 
-    await shareInvoiceWhatsApp(phone, invoiceNumber, invoiceDate, amount, invoiceId);
-
     if (whatsappModalInstance) {
         whatsappModalInstance.hide();
     }
+
+    await shareInvoiceWhatsApp(phone, invoiceNumber, invoiceDate, amount, invoiceId);
 }
 
 async function shareInvoiceWhatsApp(phone, invoiceNumber, invoiceDate, amount, invoiceId) {
@@ -196,34 +196,44 @@ async function shareInvoiceWhatsApp(phone, invoiceNumber, invoiceDate, amount, i
     const companyName = 'COSMIC SURGICALS';
 
     // Check if Web Share API with files is supported (mobile)
-    if (navigator.canShare && navigator.canShare({ files: [new File([''], 'test.pdf', { type: 'application/pdf' })] })) {
+    if (navigator.canShare) {
         try {
-            // Fetch the PDF
-            const response = await fetch(`/billing/invoices/${invoiceId}/pdf`);
-            const blob = await response.blob();
-            const file = new File([blob], `${invoiceNumber.replace(/\//g, '-')}.pdf`, { type: 'application/pdf' });
+            const testFile = new File(['test'], 'test.pdf', { type: 'application/pdf' });
+            if (navigator.canShare({ files: [testFile] })) {
+                const response = await fetch(`/billing/invoices/${invoiceId}/pdf`);
+                const blob = await response.blob();
+                const file = new File([blob], `Invoice-${invoiceNumber.replace(/\//g, '-')}.pdf`, { type: 'application/pdf' });
 
-            // Share using Web Share API
-            await navigator.share({
-                title: `Invoice ${invoiceNumber}`,
-                text: `Invoice from ${companyName}\nAmount: Rs. ${formattedAmount}`,
-                files: [file]
-            });
-            return;
+                await navigator.share({
+                    title: `Invoice ${invoiceNumber}`,
+                    text: `Invoice from ${companyName}\nInvoice No: ${invoiceNumber}\nDate: ${invoiceDate}\nAmount: Rs. ${formattedAmount}`,
+                    files: [file]
+                });
+                return;
+            }
         } catch (error) {
-            console.error('Share failed:', error);
+            console.log('Web Share failed, using fallback:', error);
         }
     }
 
-    // Fallback to link sharing
-    const pdfUrl = `http://64.227.184.191/billing/invoices/${invoiceId}/pdf`;
+    // Fallback: Download PDF + Open WhatsApp
+    // Step 1: Download the PDF
+    const pdfUrl = `/billing/invoices/${invoiceId}/pdf`;
+    const link = document.createElement('a');
+    link.href = pdfUrl;
+    link.download = `Invoice-${invoiceNumber.replace(/\//g, '-')}.pdf`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    // Step 2: Open WhatsApp with message
     const message = `Invoice from ${companyName}
 
 Invoice No: ${invoiceNumber}
 Date: ${invoiceDate}
 Amount: Rs. ${formattedAmount}
 
-Download PDF: ${pdfUrl}
+Please find the invoice PDF attached.
 
 Thank you for your purchase!`;
 
@@ -233,7 +243,11 @@ Thank you for your purchase!`;
     } else {
         whatsappUrl = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`;
     }
-    window.open(whatsappUrl, '_blank');
+
+    setTimeout(() => {
+        window.open(whatsappUrl, '_blank');
+        alert('PDF downloaded! Please attach it in WhatsApp.');
+    }, 500);
 }
 </script>
 {% endblock %}

@@ -149,43 +149,102 @@ class PDFGenerator:
     def _classic_header(self, company, invoice, is_cancelled):
         elements = []
 
-        gstin = company.gstin if company else ''
-        if gstin:
-            elements.append(Paragraph(f"GSTIN: {gstin}", self.styles['Small']))
-
-        elements.append(Spacer(1, 4*mm))  # Space before company name
+        # Colors for header
+        HEADER_BG = colors.HexColor('#1a5276')
+        LIGHT_BG = colors.HexColor('#f8f9fa')
 
         company_name = company.name.upper() if company else 'COMPANY NAME'
-        elements.append(Paragraph(company_name, self.styles['CompanyName']))
+        gstin = company.gstin if company else ''
 
-        elements.append(Spacer(1, 4*mm))  # Space after company name
-
+        # Build address and contact info
+        addr_line = ''
+        contact_line = ''
         if company:
-            # Build address line
-            addr_line = ''
             if company.address:
                 addr_line = company.address.replace('\n', ', ').strip(', ')
-
-            # Build contact line separately
             contact_parts = []
             if company.phone:
                 contact_parts.append(f"Ph: {company.phone}")
             if hasattr(company, 'email') and company.email:
                 contact_parts.append(f"Email: {company.email}")
-
-            if addr_line:
-                elements.append(Paragraph(addr_line, self.styles['CompanyInfo']))
-                elements.append(Spacer(1, 1*mm))
-
             if contact_parts:
-                elements.append(Paragraph(' | '.join(contact_parts), self.styles['CompanyInfo']))
+                contact_line = ' | '.join(contact_parts)
 
-        elements.append(Spacer(1, 4*mm))  # Space before TAX INVOICE
+        # Company name banner with dark background
+        name_style = ParagraphStyle(
+            'HeaderName', fontSize=18, fontName='Helvetica-Bold',
+            alignment=TA_CENTER, textColor=colors.white
+        )
+        name_table = Table([[Paragraph(company_name, name_style)]], colWidths=[self.content_width])
+        name_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, -1), HEADER_BG),
+            ('TOPPADDING', (0, 0), (-1, -1), 4*mm),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 4*mm),
+        ]))
+        elements.append(name_table)
 
+        # Company details row (Address, Contact, GSTIN)
+        details_style = ParagraphStyle(
+            'HeaderDetails', fontSize=8, fontName='Helvetica',
+            alignment=TA_CENTER, textColor=colors.HexColor('#333333'), leading=11
+        )
+
+        detail_lines = []
+        if addr_line:
+            detail_lines.append(addr_line)
+        if contact_line:
+            detail_lines.append(contact_line)
+        if gstin:
+            detail_lines.append(f"<b>GSTIN: {gstin}</b>")
+
+        if detail_lines:
+            details_content = '<br/>'.join(detail_lines)
+            details_table = Table([[Paragraph(details_content, details_style)]], colWidths=[self.content_width])
+            details_table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, -1), LIGHT_BG),
+                ('TOPPADDING', (0, 0), (-1, -1), 2*mm),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 2*mm),
+                ('BOX', (0, 0), (-1, -1), 0.5, colors.HexColor('#dee2e6')),
+            ]))
+            elements.append(details_table)
+
+        elements.append(Spacer(1, 3*mm))
+
+        # TAX INVOICE banner with Invoice No and Date
         title = "TAX INVOICE"
         if is_cancelled:
             title = "TAX INVOICE - CANCELLED"
-        elements.append(Paragraph(f"<u><b>{title}</b></u>", self.styles['TaxInvoice']))
+            title_bg = colors.HexColor('#c0392b')
+        else:
+            title_bg = colors.HexColor('#2980b9')
+
+        inv_date = invoice.invoice_date.strftime('%d-%b-%Y') if invoice.invoice_date else ''
+
+        title_style = ParagraphStyle('TitleStyle', fontSize=12, fontName='Helvetica-Bold',
+                                     alignment=TA_CENTER, textColor=colors.white)
+        info_style = ParagraphStyle('InfoStyle', fontSize=9, fontName='Helvetica-Bold',
+                                    alignment=TA_CENTER, textColor=colors.white)
+
+        invoice_banner = Table([
+            [
+                Paragraph(f"No: {invoice.invoice_number}", info_style),
+                Paragraph(title, title_style),
+                Paragraph(f"Date: {inv_date}", info_style)
+            ]
+        ], colWidths=[50*mm, self.content_width - 100*mm, 50*mm])
+
+        invoice_banner.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, -1), title_bg),
+            ('ALIGN', (0, 0), (0, 0), 'LEFT'),
+            ('ALIGN', (1, 0), (1, 0), 'CENTER'),
+            ('ALIGN', (2, 0), (2, 0), 'RIGHT'),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('TOPPADDING', (0, 0), (-1, -1), 3*mm),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 3*mm),
+            ('LEFTPADDING', (0, 0), (-1, -1), 3*mm),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 3*mm),
+        ]))
+        elements.append(invoice_banner)
         elements.append(Spacer(1, 3*mm))
 
         return elements
@@ -197,36 +256,60 @@ class PDFGenerator:
         customer_name = invoice.customer_name or 'Walk-in Customer'
         customer_phone = getattr(invoice, 'customer_phone', '') or ''
         customer_addr = ''
-        if customer and customer.address:
-            customer_addr = customer.address.replace('\n', ', ')
+        customer_gstin = ''
+        customer_state = ''
 
-        inv_date = invoice.invoice_date.strftime('%d-%b-%Y') if invoice.invoice_date else ''
+        if customer:
+            if customer.address:
+                customer_addr = customer.address.replace('\n', ', ')
+            if hasattr(customer, 'gstin') and customer.gstin:
+                customer_gstin = customer.gstin
+            if hasattr(customer, 'state_code') and customer.state_code:
+                customer_state = f"{get_state_name(customer.state_code)} ({customer.state_code})"
 
-        left_content = f"<b>Name and Address of the Purchasing Dealer:</b><br/>{customer_name}"
+        # Bill To section
+        bill_to_content = f"<b>Bill To:</b><br/><b>{customer_name}</b>"
         if customer_phone:
-            left_content += f"<br/>Ph: {customer_phone}"
+            bill_to_content += f"<br/>Ph: {customer_phone}"
         if customer_addr:
-            left_content += f"<br/>{customer_addr}"
+            bill_to_content += f"<br/>{customer_addr}"
+        if customer_gstin:
+            bill_to_content += f"<br/>GSTIN: {customer_gstin}"
+        if customer_state:
+            bill_to_content += f"<br/>State: {customer_state}"
 
-        center_content = "<b>ORIGINAL</b>"
-        right_content = f"<b>Invoice No.:</b> {invoice.invoice_number}<br/><b>Date:</b> {inv_date}"
+        # Ship To / Copy type section
+        ship_to_content = "<b>ORIGINAL FOR RECIPIENT</b>"
+
+        # Seller details
+        seller_content = ""
+        if company:
+            seller_content = f"<b>From:</b><br/><b>{company.name}</b>"
+            if company.address:
+                seller_content += f"<br/>{company.address.replace(chr(10), ', ')}"
+            if company.state_code:
+                seller_content += f"<br/>State: {get_state_name(company.state_code)} ({company.state_code})"
 
         data = [[
-            Paragraph(left_content, self.styles['Small']),
-            Paragraph(center_content, self.styles['Small']),
-            Paragraph(right_content, self.styles['Small'])
+            Paragraph(bill_to_content, self.styles['Small']),
+            Paragraph(ship_to_content, self.styles['SmallCenter']),
+            Paragraph(seller_content, self.styles['Small'])
         ]]
 
-        table = Table(data, colWidths=[85*mm, 40*mm, 60*mm])
+        LIGHT_BG = colors.HexColor('#f8f9fa')
+        table = Table(data, colWidths=[70*mm, 45*mm, 70*mm])
         table.setStyle(TableStyle([
             ('VALIGN', (0, 0), (-1, -1), 'TOP'),
             ('ALIGN', (1, 0), (1, 0), 'CENTER'),
-            ('ALIGN', (2, 0), (2, 0), 'RIGHT'),
-            ('BOX', (0, 0), (-1, -1), 0.5, colors.black),
+            ('ALIGN', (2, 0), (2, 0), 'LEFT'),
+            ('BOX', (0, 0), (-1, -1), 0.5, colors.HexColor('#dee2e6')),
+            ('LINEBEFORE', (1, 0), (1, 0), 0.5, colors.HexColor('#dee2e6')),
+            ('LINEBEFORE', (2, 0), (2, 0), 0.5, colors.HexColor('#dee2e6')),
+            ('BACKGROUND', (0, 0), (-1, -1), LIGHT_BG),
             ('TOPPADDING', (0, 0), (-1, -1), 3*mm),
             ('BOTTOMPADDING', (0, 0), (-1, -1), 3*mm),
-            ('LEFTPADDING', (0, 0), (-1, -1), 2*mm),
-            ('RIGHTPADDING', (0, 0), (-1, -1), 2*mm),
+            ('LEFTPADDING', (0, 0), (-1, -1), 3*mm),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 3*mm),
         ]))
         elements.append(table)
         elements.append(Spacer(1, 2*mm))

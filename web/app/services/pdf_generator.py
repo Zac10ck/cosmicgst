@@ -182,6 +182,7 @@ class PDFGenerator:
 
         customer = getattr(invoice, 'customer', None)
         customer_name = invoice.customer_name or 'Walk-in Customer'
+        customer_phone = getattr(invoice, 'customer_phone', '') or ''
         customer_addr = ''
         if customer and customer.address:
             customer_addr = customer.address.replace('\n', ', ')
@@ -189,6 +190,8 @@ class PDFGenerator:
         inv_date = invoice.invoice_date.strftime('%d-%b-%Y') if invoice.invoice_date else ''
 
         left_content = f"<b>Name and Address of the Purchasing Dealer:</b><br/>{customer_name}"
+        if customer_phone:
+            left_content += f"<br/>Ph: {customer_phone}"
         if customer_addr:
             left_content += f"<br/>{customer_addr}"
 
@@ -477,6 +480,7 @@ class PDFGenerator:
 
         customer = getattr(invoice, 'customer', None)
         customer_name = invoice.customer_name or 'Walk-in Customer'
+        customer_phone = getattr(invoice, 'customer_phone', '') or ''
 
         # Seller info
         seller_lines = []
@@ -500,6 +504,9 @@ class PDFGenerator:
                 buyer_lines.append(f"State: {get_state_name(customer.state_code)} ({customer.state_code})")
             if hasattr(customer, 'phone') and customer.phone:
                 buyer_lines.append(f"Ph: {customer.phone}")
+        elif customer_phone:
+            # For walk-in customers, show phone from invoice
+            buyer_lines.append(f"Ph: {customer_phone}")
 
         left_cell = Paragraph(f"<font color='#1a5276'><b>From:</b></font><br/>{'<br/>'.join(seller_lines)}", self.styles['Small'])
         right_cell = Paragraph(f"<font color='#1a5276'><b>To:</b></font><br/>{'<br/>'.join(buyer_lines)}", self.styles['Small'])

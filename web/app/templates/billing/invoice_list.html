@@ -166,13 +166,12 @@ function openWhatsAppModal(invoiceNumber, invoiceDate, amount, invoiceId) {
     whatsappModalInstance = new bootstrap.Modal(document.getElementById('whatsappModal'));
     whatsappModalInstance.show();
 
-    // Focus on phone input
     document.getElementById('whatsappModal').addEventListener('shown.bs.modal', function () {
         document.getElementById('wa-phone').focus();
     }, {once: true});
 }
 
-function sendWhatsAppFromModal() {
+async function sendWhatsAppFromModal() {
     const phone = document.getElementById('wa-phone').value.trim();
     if (!phone || phone.length !== 10) {
         alert('Please enter a valid 10-digit WhatsApp number');
@@ -184,24 +183,40 @@ function sendWhatsAppFromModal() {
     const amount = document.getElementById('wa-invoice-amount').value;
     const invoiceId = document.getElementById('wa-invoice-id').value;
 
-    shareInvoiceWhatsApp(phone, invoiceNumber, invoiceDate, amount, invoiceId);
+    await shareInvoiceWhatsApp(phone, invoiceNumber, invoiceDate, amount, invoiceId);
 
     if (whatsappModalInstance) {
         whatsappModalInstance.hide();
     }
 }
 
-function shareInvoiceWhatsApp(phone, invoiceNumber, invoiceDate, amount, invoiceId) {
-    // Clean phone number - keep only digits
+async function shareInvoiceWhatsApp(phone, invoiceNumber, invoiceDate, amount, invoiceId) {
     const cleanPhone = phone.replace(/\D/g, '');
-
-    // Format amount
     const formattedAmount = parseFloat(amount).toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2});
-
-    // Build message
     const companyName = 'COSMIC SURGICALS';
-    const pdfUrl = `http://64.227.184.191/billing/invoices/${invoiceId}/pdf`;
 
+    // Check if Web Share API with files is supported (mobile)
+    if (navigator.canShare && navigator.canShare({ files: [new File([''], 'test.pdf', { type: 'application/pdf' })] })) {
+        try {
+            // Fetch the PDF
+            const response = await fetch(`/billing/invoices/${invoiceId}/pdf`);
+            const blob = await response.blob();
+            const file = new File([blob], `${invoiceNumber.replace(/\//g, '-')}.pdf`, { type: 'application/pdf' });
+
+            // Share using Web Share API
+            await navigator.share({
+                title: `Invoice ${invoiceNumber}`,
+                text: `Invoice from ${companyName}\nAmount: Rs. ${formattedAmount}`,
+                files: [file]
+            });
+            return;
+        } catch (error) {
+            console.error('Share failed:', error);
+        }
+    }
+
+    // Fallback to link sharing
+    const pdfUrl = `http://64.227.184.191/billing/invoices/${invoiceId}/pdf`;
     const message = `Invoice from ${companyName}
 
 Invoice No: ${invoiceNumber}
@@ -212,18 +227,12 @@ Download PDF: ${pdfUrl}
 
 Thank you for your purchase!`;
 
-    // Build WhatsApp URL
-    const encodedMessage = encodeURIComponent(message);
     let whatsappUrl;
-
     if (cleanPhone.length === 10) {
-        whatsappUrl = `https://wa.me/91${cleanPhone}?text=${encodedMessage}`;
-    } else if (cleanPhone.length === 12 && cleanPhone.startsWith('91')) {
-        whatsappUrl = `https://wa.me/${cleanPhone}?text=${encodedMessage}`;
+        whatsappUrl = `https://wa.me/91${cleanPhone}?text=${encodeURIComponent(message)}`;
     } else {
-        whatsappUrl = `https://wa.me/${cleanPhone}?text=${encodedMessage}`;
+        whatsappUrl = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`;
     }
-
     window.open(whatsappUrl, '_blank');
 }
 </script>

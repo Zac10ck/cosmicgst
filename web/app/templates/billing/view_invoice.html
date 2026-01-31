@@ -13,6 +13,15 @@
         <a href="{{ url_for('billing.download_invoice_pdf', id=invoice.id) }}" class="btn btn-primary me-2">
             <i class="bi bi-file-pdf me-1"></i>Download PDF
         </a>
+        {% if invoice.customer_phone %}
+        <button type="button" class="btn btn-success me-2" onclick="shareWhatsApp()">
+            <i class="bi bi-whatsapp me-1"></i>WhatsApp
+        </button>
+        {% else %}
+        <button type="button" class="btn btn-outline-success me-2" data-bs-toggle="modal" data-bs-target="#whatsappModal">
+            <i class="bi bi-whatsapp me-1"></i>WhatsApp
+        </button>
+        {% endif %}
         <button type="button" class="btn btn-outline-primary me-2" onclick="window.print()">
             <i class="bi bi-printer me-1"></i>Print
         </button>
@@ -96,6 +105,8 @@
                         {% if invoice.customer.gstin %}<br>GSTIN: {{ invoice.customer.gstin }}{% endif %}
                         {% if invoice.customer.phone %}<br>Phone: {{ invoice.customer.phone }}{% endif %}
                         {% if invoice.customer.state_name %}<br>State: {{ invoice.customer.state_name }}{% endif %}
+                        {% elif invoice.customer_phone %}
+                        <br><i class="bi bi-whatsapp text-success"></i> {{ invoice.customer_phone }}
                         {% endif %}
                     </div>
                 </div>
@@ -894,5 +905,170 @@ function saveEwayBillNumber() {
         alert('Error saving e-Way bill number');
     });
 }
+
+// WhatsApp Sharing with PDF
+async function shareWhatsApp() {
+    const invoiceNumber = '{{ invoice.invoice_number }}';
+    const invoiceId = {{ invoice.id }};
+    const companyName = '{{ company.name if company else "Our Store" }}';
+    const amount = {{ invoice.grand_total }};
+    const formattedAmount = parseFloat(amount).toLocaleString('en-IN', {minimumFractionDigits: 2});
+
+    // Check if Web Share API with files is supported (mobile)
+    if (navigator.canShare && navigator.canShare({ files: [new File([''], 'test.pdf', { type: 'application/pdf' })] })) {
+        try {
+            // Show loading
+            const btn = event.target.closest('button');
+            const originalText = btn.innerHTML;
+            btn.innerHTML = '<i class="bi bi-hourglass-split me-1"></i>Loading...';
+            btn.disabled = true;
+
+            // Fetch the PDF
+            const response = await fetch(`/billing/invoices/${invoiceId}/pdf`);
+            const blob = await response.blob();
+            const file = new File([blob], `${invoiceNumber.replace(/\//g, '-')}.pdf`, { type: 'application/pdf' });
+
+            // Share using Web Share API
+            await navigator.share({
+                title: `Invoice ${invoiceNumber}`,
+                text: `Invoice from ${companyName}\nAmount: Rs. ${formattedAmount}`,
+                files: [file]
+            });
+
+            btn.innerHTML = originalText;
+            btn.disabled = false;
+        } catch (error) {
+            console.error('Share failed:', error);
+            // Fallback to link sharing
+            fallbackShare();
+        }
+    } else {
+        // Desktop - fallback to link sharing
+        fallbackShare();
+    }
+}
+
+function fallbackShare() {
+    const phone = '{{ invoice.customer_phone or "" }}';
+    const invoiceNumber = '{{ invoice.invoice_number }}';
+    const invoiceDate = '{{ invoice.invoice_date.strftime("%d-%b-%Y") if invoice.invoice_date else "" }}';
+    const amount = {{ invoice.grand_total }};
+    const invoiceId = {{ invoice.id }};
+    const formattedAmount = parseFloat(amount).toLocaleString('en-IN', {minimumFractionDigits: 2});
+    const companyName = '{{ company.name if company else "Our Store" }}';
+    const pdfUrl = `http://64.227.184.191/billing/invoices/${invoiceId}/pdf`;
+
+    const message = `Invoice from ${companyName}
+
+Invoice No: ${invoiceNumber}
+Date: ${invoiceDate}
+Amount: Rs. ${formattedAmount}
+
+Download PDF: ${pdfUrl}
+
+Thank you for your purchase!`;
+
+    let whatsappUrl;
+    const cleanPhone = phone.replace(/\D/g, '');
+    if (cleanPhone.length === 10) {
+        whatsappUrl = `https://wa.me/91${cleanPhone}?text=${encodeURIComponent(message)}`;
+    } else if (cleanPhone.length > 0) {
+        whatsappUrl = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`;
+    } else {
+        whatsappUrl = `https://wa.me/?text=${encodeURIComponent(message)}`;
+    }
+    window.open(whatsappUrl, '_blank');
+}
+
+async function shareWhatsAppWithNumber() {
+    const phone = document.getElementById('wa-phone-input').value.trim();
+    if (!phone || phone.length !== 10) {
+        alert('Please enter a valid 10-digit WhatsApp number');
+        return;
+    }
+
+    const invoiceNumber = '{{ invoice.invoice_number }}';
+    const invoiceId = {{ invoice.id }};
+    const companyName = '{{ company.name if company else "Our Store" }}';
+    const amount = {{ invoice.grand_total }};
+    const formattedAmount = parseFloat(amount).toLocaleString('en-IN', {minimumFractionDigits: 2});
+
+    // Check if Web Share API with files is supported (mobile)
+    if (navigator.canShare && navigator.canShare({ files: [new File([''], 'test.pdf', { type: 'application/pdf' })] })) {
+        try {
+            const btn = event.target.closest('button');
+            const originalText = btn.innerHTML;
+            btn.innerHTML = '<i class="bi bi-hourglass-split me-1"></i>Loading...';
+            btn.disabled = true;
+
+            const response = await fetch(`/billing/invoices/${invoiceId}/pdf`);
+            const blob = await response.blob();
+            const file = new File([blob], `${invoiceNumber.replace(/\//g, '-')}.pdf`, { type: 'application/pdf' });
+
+            await navigator.share({
+                title: `Invoice ${invoiceNumber}`,
+                text: `Invoice from ${companyName}\nAmount: Rs. ${formattedAmount}`,
+                files: [file]
+            });
+
+            btn.innerHTML = originalText;
+            btn.disabled = false;
+            bootstrap.Modal.getInstance(document.getElementById('whatsappModal')).hide();
+        } catch (error) {
+            console.error('Share failed:', error);
+            fallbackShareWithPhone(phone);
+        }
+    } else {
+        fallbackShareWithPhone(phone);
+    }
+}
+
+function fallbackShareWithPhone(phone) {
+    const invoiceNumber = '{{ invoice.invoice_number }}';
+    const invoiceDate = '{{ invoice.invoice_date.strftime("%d-%b-%Y") if invoice.invoice_date else "" }}';
+    const amount = {{ invoice.grand_total }};
+    const invoiceId = {{ invoice.id }};
+    const formattedAmount = parseFloat(amount).toLocaleString('en-IN', {minimumFractionDigits: 2});
+    const companyName = '{{ company.name if company else "Our Store" }}';
+    const pdfUrl = `http://64.227.184.191/billing/invoices/${invoiceId}/pdf`;
+
+    const message = `Invoice from ${companyName}
+
+Invoice No: ${invoiceNumber}
+Date: ${invoiceDate}
+Amount: Rs. ${formattedAmount}
+
+Download PDF: ${pdfUrl}
+
+Thank you for your purchase!`;
+
+    const whatsappUrl = `https://wa.me/91${phone}?text=${encodeURIComponent(message)}`;
+    window.open(whatsappUrl, '_blank');
+    bootstrap.Modal.getInstance(document.getElementById('whatsappModal')).hide();
+}
 </script>
+
+<!-- WhatsApp Modal -->
+<div class="modal fade" id="whatsappModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-sm modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-success text-white py-2">
+                <h6 class="modal-title"><i class="bi bi-whatsapp me-2"></i>Share on WhatsApp</h6>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label">WhatsApp Number</label>
+                    <div class="input-group">
+                        <span class="input-group-text">+91</span>
+                        <input type="tel" class="form-control" id="wa-phone-input" placeholder="9876543210" maxlength="10">
+                    </div>
+                </div>
+                <button type="button" class="btn btn-success w-100" onclick="shareWhatsAppWithNumber()">
+                    <i class="bi bi-send me-2"></i>Share Invoice
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}

@@ -79,12 +79,12 @@ class PDFGenerator:
         """Setup custom paragraph styles"""
         # Classic styles
         self.styles.add(ParagraphStyle(
-            name='CompanyName', fontSize=14, fontName='Helvetica-Bold',
-            alignment=TA_CENTER, spaceAfter=0
+            name='CompanyName', fontSize=16, fontName='Helvetica-Bold',
+            alignment=TA_CENTER, spaceAfter=2*mm
         ))
         self.styles.add(ParagraphStyle(
             name='CompanyInfo', fontSize=9, fontName='Helvetica',
-            alignment=TA_CENTER, leading=11
+            alignment=TA_CENTER, leading=12, spaceAfter=1*mm
         ))
         self.styles.add(ParagraphStyle(
             name='TaxInvoice', fontSize=11, fontName='Helvetica-Bold',
@@ -153,21 +153,34 @@ class PDFGenerator:
         if gstin:
             elements.append(Paragraph(f"GSTIN: {gstin}", self.styles['Small']))
 
-        elements.append(Spacer(1, 2*mm))
+        elements.append(Spacer(1, 4*mm))  # Space before company name
 
         company_name = company.name.upper() if company else 'COMPANY NAME'
         elements.append(Paragraph(company_name, self.styles['CompanyName']))
 
-        if company:
-            addr_parts = []
-            if company.address:
-                addr_parts.append(company.address.replace('\n', ', '))
-            if company.phone:
-                addr_parts.append(f"Ph.{company.phone}")
-            if addr_parts:
-                elements.append(Paragraph(', '.join(addr_parts), self.styles['CompanyInfo']))
+        elements.append(Spacer(1, 4*mm))  # Space after company name
 
-        elements.append(Spacer(1, 3*mm))
+        if company:
+            # Build address line
+            addr_line = ''
+            if company.address:
+                addr_line = company.address.replace('\n', ', ').strip(', ')
+
+            # Build contact line separately
+            contact_parts = []
+            if company.phone:
+                contact_parts.append(f"Ph: {company.phone}")
+            if hasattr(company, 'email') and company.email:
+                contact_parts.append(f"Email: {company.email}")
+
+            if addr_line:
+                elements.append(Paragraph(addr_line, self.styles['CompanyInfo']))
+                elements.append(Spacer(1, 1*mm))
+
+            if contact_parts:
+                elements.append(Paragraph(' | '.join(contact_parts), self.styles['CompanyInfo']))
+
+        elements.append(Spacer(1, 4*mm))  # Space before TAX INVOICE
 
         title = "TAX INVOICE"
         if is_cancelled:
@@ -592,18 +605,20 @@ class PDFGenerator:
         has_igst = any(v['igst'] > 0 for v in hsn_data.values())
 
         if has_igst:
-            hsn_headers = ['HSN', 'Taxable', 'IGST']
-            hsn_widths = [18*mm, 25*mm, 22*mm]
+            hsn_headers = ['HSN', 'Rate', 'Taxable', 'IGST']
+            hsn_widths = [15*mm, 12*mm, 22*mm, 18*mm]
         else:
-            hsn_headers = ['HSN', 'Taxable', 'CGST', 'SGST']
-            hsn_widths = [15*mm, 22*mm, 18*mm, 18*mm]
+            hsn_headers = ['HSN', 'Rate', 'Taxable', 'CGST', 'SGST']
+            hsn_widths = [13*mm, 10*mm, 18*mm, 14*mm, 14*mm]
 
         hsn_rows = [hsn_headers]
         for hsn, vals in hsn_data.items():
+            rate = vals['rate']
+            half_rate = rate / 2
             if has_igst:
-                hsn_rows.append([hsn, f"{vals['taxable']:,.2f}", f"{vals['igst']:,.2f}"])
+                hsn_rows.append([hsn, f"{rate:g}%", f"{vals['taxable']:,.2f}", f"{vals['igst']:,.2f}"])
             else:
-                hsn_rows.append([hsn, f"{vals['taxable']:,.2f}", f"{vals['cgst']:,.2f}", f"{vals['sgst']:,.2f}"])
+                hsn_rows.append([hsn, f"{rate:g}%", f"{vals['taxable']:,.2f}", f"{vals['cgst']:,.2f}", f"{vals['sgst']:,.2f}"])
 
         hsn_table = Table(hsn_rows, colWidths=hsn_widths)
         hsn_table.setStyle(TableStyle([
@@ -619,13 +634,29 @@ class PDFGenerator:
             ('BOTTOMPADDING', (0, 0), (-1, -1), 1.5*mm),
         ]))
 
-        # Totals
+        # Totals - Group tax by rate for accurate percentage display
+        tax_by_rate = {}
+        for item in items:
+            rate = item.gst_rate or 0
+            if rate not in tax_by_rate:
+                tax_by_rate[rate] = {'cgst': 0, 'sgst': 0, 'igst': 0}
+            tax_by_rate[rate]['cgst'] += item.cgst or 0
+            tax_by_rate[rate]['sgst'] += item.sgst or 0
+            tax_by_rate[rate]['igst'] += item.igst or 0
+
         totals_rows = [['Subtotal:', f"{invoice.subtotal:,.2f}"]]
-        if invoice.cgst_total and invoice.cgst_total > 0:
-            totals_rows.append(['CGST:', f"{invoice.cgst_total:,.2f}"])
-            totals_rows.append(['SGST:', f"{invoice.sgst_total:,.2f}"])
-        if invoice.igst_total and invoice.igst_total > 0:
-            totals_rows.append(['IGST:', f"{invoice.igst_total:,.2f}"])
+
+        # Show tax breakdown by rate with percentages
+        for rate in sorted(tax_by_rate.keys()):
+            if rate == 0:
+                continue  # Skip 0% GST
+            half_rate = rate / 2
+            vals = tax_by_rate[rate]
+            if vals['cgst'] > 0:
+                totals_rows.append([f'CGST ({half_rate:g}%):', f"{vals['cgst']:,.2f}"])
+                totals_rows.append([f'SGST ({half_rate:g}%):', f"{vals['sgst']:,.2f}"])
+            if vals['igst'] > 0:
+                totals_rows.append([f'IGST ({rate:g}%):', f"{vals['igst']:,.2f}"])
         if invoice.discount and invoice.discount > 0:
             totals_rows.append(['Discount:', f"-{invoice.discount:,.2f}"])
 

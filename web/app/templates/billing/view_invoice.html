@@ -218,21 +218,25 @@
                                 <td>Subtotal</td>
                                 <td class="text-end">Rs. {{ "%.2f"|format(invoice.subtotal) }}</td>
                             </tr>
-                            {% if invoice.cgst_total > 0 %}
+                            {% if tax_summary %}
+                            {% for row in tax_summary %}
+                            {% if row.cgst > 0 %}
                             <tr>
-                                <td>CGST</td>
-                                <td class="text-end">Rs. {{ "%.2f"|format(invoice.cgst_total) }}</td>
+                                <td>CGST ({{ "%.1f"|format(row.gst_rate / 2) }}%)</td>
+                                <td class="text-end">Rs. {{ "%.2f"|format(row.cgst) }}</td>
                             </tr>
                             <tr>
-                                <td>SGST</td>
-                                <td class="text-end">Rs. {{ "%.2f"|format(invoice.sgst_total) }}</td>
+                                <td>SGST ({{ "%.1f"|format(row.gst_rate / 2) }}%)</td>
+                                <td class="text-end">Rs. {{ "%.2f"|format(row.sgst) }}</td>
                             </tr>
                             {% endif %}
-                            {% if invoice.igst_total > 0 %}
+                            {% if row.igst > 0 %}
                             <tr>
-                                <td>IGST</td>
-                                <td class="text-end">Rs. {{ "%.2f"|format(invoice.igst_total) }}</td>
+                                <td>IGST ({{ "%.1f"|format(row.gst_rate) }}%)</td>
+                                <td class="text-end">Rs. {{ "%.2f"|format(row.igst) }}</td>
                             </tr>
+                            {% endif %}
+                            {% endfor %}
                             {% endif %}
                             {% if invoice.discount > 0 %}
                             <tr class="discount-row">

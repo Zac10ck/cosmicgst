@@ -3,12 +3,14 @@
     <div class="position-sticky pt-2">
         <ul class="nav flex-column">
             <!-- Operations Section -->
+            {% if current_user.is_admin() %}
             <li class="nav-item">
                 <a class="nav-link {{ 'active' if request.endpoint and request.endpoint.startswith('dashboard') }}"
                    href="{{ url_for('dashboard.index') }}">
                     <span class="material-icons-outlined">dashboard</span>Dashboard
                 </a>
             </li>
+            {% endif %}
             <li class="nav-item">
                 <a class="nav-link {{ 'active' if request.endpoint == 'billing.new_bill' }}"
                    href="{{ url_for('billing.new_bill') }}">

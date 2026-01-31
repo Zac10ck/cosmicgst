@@ -14,7 +14,10 @@ auth_bp = Blueprint('auth', __name__)
 def login():
     """User login"""
     if current_user.is_authenticated:
-        return redirect(url_for('dashboard.index'))
+        # Redirect based on user role
+        if current_user.is_admin():
+            return redirect(url_for('dashboard.index'))
+        return redirect(url_for('billing.invoice_list'))
 
     form = LoginForm()
     if form.validate_on_submit():
@@ -41,7 +44,11 @@ def login():
             next_page = request.args.get('next')
             if next_page:
                 return redirect(next_page)
-            return redirect(url_for('dashboard.index'))
+
+            # Redirect based on user role
+            if user.is_admin():
+                return redirect(url_for('dashboard.index'))
+            return redirect(url_for('billing.invoice_list'))
 
         flash('Invalid username or password', 'danger')
 
@@ -74,7 +81,7 @@ def manage_users():
     """Manage users (admin only)"""
     if not current_user.is_admin():
         flash('Admin access required', 'danger')
-        return redirect(url_for('dashboard.index'))
+        return redirect(url_for('billing.invoice_list'))
 
     users = User.query.order_by(User.username).all()
     return render_template('auth/manage_users.html', users=users)
@@ -86,7 +93,7 @@ def add_user():
     """Add new user (admin only)"""
     if not current_user.is_admin():
         flash('Admin access required', 'danger')
-        return redirect(url_for('dashboard.index'))
+        return redirect(url_for('billing.invoice_list'))
 
     form = UserForm()
     if form.validate_on_submit():
@@ -113,7 +120,7 @@ def edit_user(id):
     """Edit user (admin only)"""
     if not current_user.is_admin():
         flash('Admin access required', 'danger')
-        return redirect(url_for('dashboard.index'))
+        return redirect(url_for('billing.invoice_list'))
 
     user = User.query.get_or_404(id)
     form = UserForm(original_username=user.username, original_email=user.email, obj=user)
@@ -140,7 +147,7 @@ def toggle_user(id):
     """Toggle user active status (admin only)"""
     if not current_user.is_admin():
         flash('Admin access required', 'danger')
-        return redirect(url_for('dashboard.index'))
+        return redirect(url_for('billing.invoice_list'))
 
     user = User.query.get_or_404(id)
 

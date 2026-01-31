@@ -10,6 +10,6 @@ def admin_required(f):
     def decorated_function(*args, **kwargs):
         if not current_user.is_admin():
             flash('Admin access required', 'error')
-            return redirect(url_for('dashboard.index'))
+            return redirect(url_for('billing.invoice_list'))
         return f(*args, **kwargs)
     return decorated_function

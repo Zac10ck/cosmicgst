@@ -8,6 +8,7 @@ from app.models.invoice import Invoice, InvoiceItem
 from app.models.product import Product
 from app.models.customer import Customer
 from app.models.quotation import Quotation
+from app.decorators import admin_required
 
 dashboard_bp = Blueprint('dashboard', __name__)
 
@@ -35,6 +36,7 @@ def get_date_range(period='month'):
 
 @dashboard_bp.route('/')
 @login_required
+@admin_required
 def index():
     """Dashboard home page with statistics"""
     try:
@@ -148,6 +150,7 @@ def index():
 
 @dashboard_bp.route('/api/sales-chart')
 @login_required
+@admin_required
 def sales_chart_data():
     """API endpoint for sales chart data (last 30 days)"""
     today = date.today()
@@ -182,6 +185,7 @@ def sales_chart_data():
 
 @dashboard_bp.route('/api/monthly-sales-chart')
 @login_required
+@admin_required
 def monthly_sales_chart_data():
     """API endpoint for monthly sales chart (last 12 months)"""
     today = date.today()
@@ -223,6 +227,7 @@ def monthly_sales_chart_data():
 
 @dashboard_bp.route('/api/category-sales-chart')
 @login_required
+@admin_required
 def category_sales_chart_data():
     """API endpoint for sales by category (current month)"""
     today = date.today()
@@ -267,6 +272,7 @@ def category_sales_chart_data():
 
 @dashboard_bp.route('/api/payment-status-chart')
 @login_required
+@admin_required
 def payment_status_chart_data():
     """API endpoint for payment status breakdown"""
     today = date.today()
@@ -298,6 +304,7 @@ def payment_status_chart_data():
 
 @dashboard_bp.route('/api/top-customers')
 @login_required
+@admin_required
 def top_customers_data():
     """API endpoint for top customers this month"""
     today = date.today()

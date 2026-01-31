@@ -111,17 +111,42 @@ def create_invoice():
         customer_name = data.get('customer_name', 'Walk-in Customer')
         buyer_state_code = data.get('buyer_state_code', seller_state_code)
         customer_gstin = ''
+        customer_phone = ''
         supply_type = 'B2C'  # Default to B2C
+        customer = None
+
+        # Get walk-in customer details
+        walkin_name = data.get('walkin_name', '').strip()
+        walkin_whatsapp = data.get('walkin_whatsapp', '').strip()
 
         if customer_id:
             customer = Customer.get_by_id(customer_id)
             if customer:
                 customer_name = customer.name
                 buyer_state_code = customer.state_code
+                customer_phone = customer.phone or ''
                 # B2B/B2C classification based on GSTIN
                 if customer.gstin:
                     customer_gstin = customer.gstin
                     supply_type = 'B2B'
+        elif walkin_name and walkin_whatsapp:
+            # Auto-create customer when name and WhatsApp are provided
+            customer = Customer(
+                name=walkin_name,
+                phone=walkin_whatsapp,
+                state_code=seller_state_code,
+                is_active=True
+            )
+            customer.save()
+            customer_id = customer.id
+            customer_name = walkin_name
+            customer_phone = walkin_whatsapp
+        else:
+            # Walk-in without details or with partial details
+            if walkin_name:
+                customer_name = walkin_name
+            if walkin_whatsapp:
+                customer_phone = walkin_whatsapp
 
         # Calculate totals using GST calculator
         calculator = GSTCalculator(seller_state_code)
@@ -174,6 +199,7 @@ def create_invoice():
             invoice_date=date.today(),
             customer_id=customer_id,
             customer_name=customer_name,
+            customer_phone=customer_phone,
             subtotal=cart_total['subtotal'],
             cgst_total=cart_total['cgst_total'],
             sgst_total=cart_total['sgst_total'],
@@ -272,13 +298,38 @@ def create_invoice():
         # Check if e-Way bill is required
         eway_required = cart_total['grand_total'] >= EWAY_BILL_THRESHOLD
 
+        # Generate WhatsApp share URL if phone number is provided
+        whatsapp_url = None
+        if customer_phone:
+            import urllib.parse
+            company_name = company.name if company else 'Our Store'
+            invoice_date_str = invoice.invoice_date.strftime('%d-%b-%Y') if invoice.invoice_date else ''
+            pdf_url = f"http://64.227.184.191/billing/invoices/{invoice.id}/pdf"
+
+            message = f"""Invoice from {company_name}
+
+Invoice No: {invoice.invoice_number}
+Date: {invoice_date_str}
+Amount: Rs. {cart_total['grand_total']:,.2f}
+
+Download PDF: {pdf_url}
+
+Thank you for your purchase!"""
+
+            encoded_message = urllib.parse.quote(message)
+            # Remove any non-digit characters from phone
+            clean_phone = ''.join(filter(str.isdigit, customer_phone))
+            if len(clean_phone) == 10:
+                whatsapp_url = f"https://wa.me/91{clean_phone}?text={encoded_message}"
+
         response = {
             'success': True,
             'invoice_id': invoice.id,
             'invoice_number': invoice.invoice_number,
             'message': f'Invoice {invoice.invoice_number} created successfully!',
             'eway_required': eway_required,
-            'payment_status': payment_status
+            'payment_status': payment_status,
+            'whatsapp_url': whatsapp_url
         }
 
         if credit_warning:

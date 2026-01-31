@@ -115,7 +115,22 @@
                     <div id="customer-results" class="customer-dropdown" style="display: none;"></div>
                 </div>
                 <div id="selected-customer-info"></div>
-                <small class="text-muted">Leave empty for Walk-in Customer</small>
+
+                <!-- Walk-in Customer Details -->
+                <div id="walkin-details" class="mt-3 pt-3 border-top">
+                    <small class="text-muted d-block mb-2"><i class="bi bi-person-badge me-1"></i>Walk-in Customer Details (optional)</small>
+                    <div class="mb-2">
+                        <input type="text" class="form-control form-control-sm" id="walkin-name"
+                               placeholder="Customer Name (leave empty for Walk-in Customer)">
+                    </div>
+                    <div class="input-group input-group-sm">
+                        <span class="input-group-text">+91</span>
+                        <input type="tel" class="form-control" id="walkin-whatsapp"
+                               placeholder="WhatsApp Number" maxlength="10" pattern="[0-9]{10}">
+                        <span class="input-group-text"><i class="bi bi-whatsapp text-success"></i></span>
+                    </div>
+                    <small class="text-muted">For invoice sharing via WhatsApp</small>
+                </div>
             </div>
         </div>
 
@@ -365,6 +380,11 @@ function selectCustomer(customer) {
         cart.setCustomer(customer);
     }
 
+    // Hide walk-in details when registered customer is selected
+    document.getElementById('walkin-details').style.display = 'none';
+    document.getElementById('walkin-name').value = '';
+    document.getElementById('walkin-whatsapp').value = '';
+
     // Show customer info
     const infoDiv = document.getElementById('selected-customer-info');
     infoDiv.innerHTML = `
@@ -380,9 +400,99 @@ function selectCustomer(customer) {
 function clearCustomer() {
     document.getElementById('customer-search').value = '';
     document.getElementById('selected-customer-info').innerHTML = '';
+    document.getElementById('walkin-details').style.display = 'block';
     if (typeof cart !== 'undefined') {
         cart.setCustomer(null);
     }
+}
+
+function selectCustomerAndHideWalkin(customer) {
+    selectCustomer(customer);
+    document.getElementById('walkin-details').style.display = 'none';
+    // Clear walk-in fields when registered customer is selected
+    document.getElementById('walkin-name').value = '';
+    document.getElementById('walkin-whatsapp').value = '';
+}
+</script>
+
+<!-- Invoice Success Modal -->
+<div class="modal fade" id="invoiceSuccessModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title"><i class="bi bi-check-circle me-2"></i>Invoice Created!</h5>
+            </div>
+            <div class="modal-body text-center">
+                <div class="mb-3">
+                    <i class="bi bi-receipt text-success" style="font-size: 3rem;"></i>
+                </div>
+                <h4 id="success-invoice-number" class="mb-2"></h4>
+                <p class="text-muted mb-3">Amount: Rs. <span id="success-amount"></span></p>
+
+                <div class="d-grid gap-2">
+                    <button id="whatsapp-share-btn" type="button" class="btn btn-success btn-lg d-none" onclick="shareOnWhatsApp()">
+                        <i class="bi bi-whatsapp me-2"></i>Share on WhatsApp
+                    </button>
+                    <a id="download-pdf-btn" href="#" target="_blank" class="btn btn-outline-primary">
+                        <i class="bi bi-file-pdf me-2"></i>Download PDF
+                    </a>
+                    <button type="button" class="btn btn-outline-secondary" onclick="printInvoice()">
+                        <i class="bi bi-printer me-2"></i>Print Invoice
+                    </button>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-primary" onclick="newInvoice()">
+                    <i class="bi bi-plus-circle me-2"></i>New Invoice
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+var currentWhatsAppUrl = null;
+
+function showInvoiceSuccess(data) {
+    console.log('Invoice success data:', data);
+
+    document.getElementById('success-invoice-number').textContent = data.invoice_number;
+    document.getElementById('success-amount').textContent = parseFloat(data.grand_total || 0).toLocaleString('en-IN', {minimumFractionDigits: 2});
+    document.getElementById('download-pdf-btn').href = '/billing/invoices/' + data.invoice_id + '/pdf';
+
+    // WhatsApp share button
+    const whatsappBtn = document.getElementById('whatsapp-share-btn');
+    console.log('WhatsApp URL:', data.whatsapp_url);
+
+    if (data.whatsapp_url) {
+        currentWhatsAppUrl = data.whatsapp_url;
+        whatsappBtn.classList.remove('d-none');
+        console.log('WhatsApp button shown');
+    } else {
+        currentWhatsAppUrl = null;
+        whatsappBtn.classList.add('d-none');
+        console.log('WhatsApp button hidden - no URL');
+    }
+
+    // Show modal
+    const modal = new bootstrap.Modal(document.getElementById('invoiceSuccessModal'));
+    modal.show();
+}
+
+function shareOnWhatsApp() {
+    if (currentWhatsAppUrl) {
+        // Use window.location for better mobile compatibility
+        window.open(currentWhatsAppUrl, '_blank');
+    }
+}
+
+function printInvoice() {
+    const pdfUrl = document.getElementById('download-pdf-btn').href;
+    window.open(pdfUrl, '_blank');
+}
+
+function newInvoice() {
+    window.location.reload();
 }
 </script>
 <script src="{{ url_for('static', filename='js/billing.js') }}"></script>

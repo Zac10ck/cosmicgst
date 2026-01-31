@@ -645,6 +645,15 @@ class BillingCart {
             }
         }
 
+        // Get walk-in customer details
+        const walkinNameInput = document.getElementById('walkin-name');
+        const walkinWhatsappInput = document.getElementById('walkin-whatsapp');
+        const walkinName = walkinNameInput?.value.trim() || '';
+        const walkinWhatsapp = walkinWhatsappInput?.value.trim() || '';
+
+        // Determine customer name for submission
+        let customerName = this.customer?.name || walkinName || 'Walk-in Customer';
+
         try {
             const response = await fetch('/billing/create', {
                 method: 'POST',
@@ -655,10 +664,13 @@ class BillingCart {
                 body: JSON.stringify({
                     items: this.items,
                     customer_id: this.customer?.id || null,
-                    customer_name: this.customer?.name || 'Walk-in Customer',
+                    customer_name: customerName,
                     buyer_state_code: buyerStateCode || this.customer?.state_code || null,
                     discount: this.discount,
                     payment_mode: paymentMode,
+                    // Walk-in customer details
+                    walkin_name: walkinName,
+                    walkin_whatsapp: walkinWhatsapp,
                     // GST options
                     is_reverse_charge: isReverseCharge,
                     // E-Way bill transport details
@@ -674,19 +686,29 @@ class BillingCart {
             const result = await response.json();
 
             if (result.success) {
-                // Show success message with payment status
-                let message = result.message;
-                if (result.credit_warning) {
-                    message += '\n\n⚠️ WARNING: ' + result.credit_warning;
+                // Show success modal with WhatsApp option
+                if (typeof showInvoiceSuccess === 'function') {
+                    showInvoiceSuccess({
+                        invoice_id: result.invoice_id,
+                        invoice_number: result.invoice_number,
+                        grand_total: this.totals.grand_total,
+                        whatsapp_url: result.whatsapp_url || null
+                    });
+                } else {
+                    // Fallback to alert if modal function not available
+                    let message = result.message;
+                    if (result.credit_warning) {
+                        message += '\n\n⚠️ WARNING: ' + result.credit_warning;
+                    }
+                    if (result.payment_status === 'UNPAID') {
+                        message += '\n\nPayment Status: UNPAID (Credit Sale)';
+                    }
+                    if (result.eway_required) {
+                        message += '\n\nNote: E-Way bill is required for this invoice.';
+                    }
+                    alert(message);
+                    window.location.href = `/billing/invoices/${result.invoice_id}`;
                 }
-                if (result.payment_status === 'UNPAID') {
-                    message += '\n\nPayment Status: UNPAID (Credit Sale)';
-                }
-                if (result.eway_required) {
-                    message += '\n\nNote: E-Way bill is required for this invoice.';
-                }
-                alert(message);
-                window.location.href = `/billing/invoices/${result.invoice_id}`;
             } else {
                 alert('Error: ' + (result.error || 'Failed to create invoice'));
             }

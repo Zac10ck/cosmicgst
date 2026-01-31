@@ -61,7 +61,12 @@
                             </a>
                         </td>
                         <td>{{ invoice.invoice_date.strftime('%d %b %Y') if invoice.invoice_date else '-' }}</td>
-                        <td>{{ invoice.customer_name or 'Walk-in' }}</td>
+                        <td>
+                            {{ invoice.customer_name or 'Walk-in' }}
+                            {% if invoice.customer_phone %}
+                            <br><small class="text-success"><i class="bi bi-whatsapp"></i> {{ invoice.customer_phone }}</small>
+                            {% endif %}
+                        </td>
                         <td class="text-end">
                             <strong>Rs. {{ "%.2f"|format(invoice.grand_total) }}</strong>
                         </td>
@@ -86,9 +91,21 @@
                                class="btn btn-sm btn-outline-primary" title="View">
                                 <i class="bi bi-eye"></i>
                             </a>
-                            <a href="#" class="btn btn-sm btn-outline-secondary" title="Print">
-                                <i class="bi bi-printer"></i>
+                            <a href="{{ url_for('billing.download_invoice_pdf', id=invoice.id) }}"
+                               class="btn btn-sm btn-outline-secondary" title="Download PDF" target="_blank">
+                                <i class="bi bi-file-pdf"></i>
                             </a>
+                            {% if invoice.customer_phone %}
+                            <button type="button" class="btn btn-sm btn-success" title="Share on WhatsApp"
+                                    onclick="shareInvoiceWhatsApp('{{ invoice.customer_phone }}', '{{ invoice.invoice_number }}', '{{ invoice.invoice_date.strftime('%d-%b-%Y') if invoice.invoice_date else '' }}', {{ invoice.grand_total }}, {{ invoice.id }})">
+                                <i class="bi bi-whatsapp"></i>
+                            </button>
+                            {% else %}
+                            <button type="button" class="btn btn-sm btn-outline-success" title="Share on WhatsApp"
+                                    onclick="openWhatsAppModal('{{ invoice.invoice_number }}', '{{ invoice.invoice_date.strftime('%d-%b-%Y') if invoice.invoice_date else '' }}', {{ invoice.grand_total }}, {{ invoice.id }})">
+                                <i class="bi bi-whatsapp"></i>
+                            </button>
+                            {% endif %}
                         </td>
                     </tr>
                     {% else %}
@@ -107,4 +124,107 @@
         Showing {{ invoices|length }} invoice(s)
     </div>
 </div>
+
+<!-- WhatsApp Share Modal -->
+<div class="modal fade" id="whatsappModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-sm modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-success text-white py-2">
+                <h6 class="modal-title"><i class="bi bi-whatsapp me-2"></i>Share on WhatsApp</h6>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="wa-invoice-number">
+                <input type="hidden" id="wa-invoice-date">
+                <input type="hidden" id="wa-invoice-amount">
+                <input type="hidden" id="wa-invoice-id">
+                <div class="mb-3">
+                    <label class="form-label">WhatsApp Number</label>
+                    <div class="input-group">
+                        <span class="input-group-text">+91</span>
+                        <input type="tel" class="form-control" id="wa-phone" placeholder="9876543210" maxlength="10" pattern="[0-9]{10}">
+                    </div>
+                </div>
+                <button type="button" class="btn btn-success w-100" onclick="sendWhatsAppFromModal()">
+                    <i class="bi bi-send me-2"></i>Share Invoice
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+var whatsappModalInstance = null;
+
+function openWhatsAppModal(invoiceNumber, invoiceDate, amount, invoiceId) {
+    document.getElementById('wa-invoice-number').value = invoiceNumber;
+    document.getElementById('wa-invoice-date').value = invoiceDate;
+    document.getElementById('wa-invoice-amount').value = amount;
+    document.getElementById('wa-invoice-id').value = invoiceId;
+    document.getElementById('wa-phone').value = '';
+
+    whatsappModalInstance = new bootstrap.Modal(document.getElementById('whatsappModal'));
+    whatsappModalInstance.show();
+
+    // Focus on phone input
+    document.getElementById('whatsappModal').addEventListener('shown.bs.modal', function () {
+        document.getElementById('wa-phone').focus();
+    }, {once: true});
+}
+
+function sendWhatsAppFromModal() {
+    const phone = document.getElementById('wa-phone').value.trim();
+    if (!phone || phone.length !== 10) {
+        alert('Please enter a valid 10-digit WhatsApp number');
+        return;
+    }
+
+    const invoiceNumber = document.getElementById('wa-invoice-number').value;
+    const invoiceDate = document.getElementById('wa-invoice-date').value;
+    const amount = document.getElementById('wa-invoice-amount').value;
+    const invoiceId = document.getElementById('wa-invoice-id').value;
+
+    shareInvoiceWhatsApp(phone, invoiceNumber, invoiceDate, amount, invoiceId);
+
+    if (whatsappModalInstance) {
+        whatsappModalInstance.hide();
+    }
+}
+
+function shareInvoiceWhatsApp(phone, invoiceNumber, invoiceDate, amount, invoiceId) {
+    // Clean phone number - keep only digits
+    const cleanPhone = phone.replace(/\D/g, '');
+
+    // Format amount
+    const formattedAmount = parseFloat(amount).toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+
+    // Build message
+    const companyName = 'COSMIC SURGICALS';
+    const pdfUrl = `http://64.227.184.191/billing/invoices/${invoiceId}/pdf`;
+
+    const message = `Invoice from ${companyName}
+
+Invoice No: ${invoiceNumber}
+Date: ${invoiceDate}
+Amount: Rs. ${formattedAmount}
+
+Download PDF: ${pdfUrl}
+
+Thank you for your purchase!`;
+
+    // Build WhatsApp URL
+    const encodedMessage = encodeURIComponent(message);
+    let whatsappUrl;
+
+    if (cleanPhone.length === 10) {
+        whatsappUrl = `https://wa.me/91${cleanPhone}?text=${encodedMessage}`;
+    } else if (cleanPhone.length === 12 && cleanPhone.startsWith('91')) {
+        whatsappUrl = `https://wa.me/${cleanPhone}?text=${encodedMessage}`;
+    } else {
+        whatsappUrl = `https://wa.me/${cleanPhone}?text=${encodedMessage}`;
+    }
+
+    window.open(whatsappUrl, '_blank');
+}
+</script>
 {% endblock %}

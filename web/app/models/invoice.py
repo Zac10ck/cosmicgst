@@ -12,6 +12,7 @@ class Invoice(db.Model):
     invoice_date = db.Column(db.Date, nullable=False, default=date.today)
     customer_id = db.Column(db.Integer, db.ForeignKey('customers.id'), nullable=True)
     customer_name = db.Column(db.String(200), default='')
+    customer_phone = db.Column(db.String(20), default='')  # For walk-in WhatsApp
 
     # Totals
     subtotal = db.Column(db.Float, default=0.0)
@@ -132,6 +133,7 @@ class Invoice(db.Model):
             'invoice_date': self.invoice_date.isoformat() if self.invoice_date else None,
             'customer_id': self.customer_id,
             'customer_name': self.customer_name,
+            'customer_phone': self.customer_phone or '',
             'subtotal': self.subtotal,
             'cgst_total': self.cgst_total,
             'sgst_total': self.sgst_total,
